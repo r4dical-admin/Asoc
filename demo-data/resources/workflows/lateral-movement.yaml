@@ -1,0 +1,5 @@
+name: lateral-movement
+steps:
+  - map-host-relationships
+  - disable-suspicious-accounts
+  - collect-memory-images

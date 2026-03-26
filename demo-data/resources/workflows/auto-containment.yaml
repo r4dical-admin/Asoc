@@ -1,0 +1,5 @@
+name: auto-containment
+steps:
+  - isolate-endpoint
+  - revoke-tokens
+  - notify-incident-channel

@@ -1,8 +1,35 @@
 # Asoc
 Agentic harness for security operations
 
+## Demo SPA (file-backed)
 
-# Incident Console — Product & Architecture Artifact
+This repository now includes a demo single-page app that loads every displayed link from real local files served by a local HTTP server.
+
+### Run locally
+
+```bash
+node server.js
+```
+
+Then open:
+
+- `http://localhost:4173/`
+
+### How it works
+
+- Left pane lists incident directories from `demo-data/incidents/*` and every file in each directory.
+- Right pane lists resource sections from `demo-data/resources/*` and every file in each section.
+- Clicking a link fetches the file through `GET /api/file?...` and loads its content in the center workspace.
+- The center pane keeps simple SPA tabs for any file the user opens.
+
+### API endpoints
+
+- `GET /api/incidents`
+- `GET /api/resources`
+- `GET /api/file?scope=incident&section=INC-1001&name=chat.md`
+- `GET /api/file?scope=resource&section=workflows&name=README.md`
+
+## Incident Console — Product & Architecture Artifact
 
 ## 1. Vision
 
@@ -184,7 +211,6 @@ Examples:
 
 * EDR
 * SIEM
-* Mail gateway
 
 Future direction:
 
@@ -218,213 +244,6 @@ Sources:
 
 Future direction:
 
-* One-click promote to incident
-* AI triage scoring
-* Deduplication logic
-
----
-
-# 6. Interaction Model
-
-1. Intakes generate or feed incidents.
-2. Incidents open investigation surfaces.
-3. Background tasks enrich evidence.
-4. Workflows orchestrate response.
-5. Skills perform atomic analysis operations.
-6. Integrations communicate externally.
-7. Historic RCAs reinforce learning.
-
-This forms a closed-loop IR lifecycle.
-
----
-
-# 7. Architectural Intent
-
-This UI is designed to support:
-
-* Agentic AI analysts
-* Human-AI collaborative investigation
-* Ephemeral background workers
-* Containerized execution
-* Event-driven automation
-
-Backend candidates:
-
-* Cloudflare container workers
-* Discord or Slack bot-based collaboration
-* Event-driven queue + worker model
-
----
-
-# 8. Product Positioning
-
-This is not a SIEM. This is not just a ticketing system.
-
-It is an Incident Operating System.
-
-It combines:
-
-* Operational context
-* Knowledge management
-* Automation
-* Collaboration
-* AI execution surface
-
----
-
-# 9. Next Evolution Ideas
-
-* Severity-based color coding
-* Real-time streaming logs
-* Graph-based attack visualization
-* Slide-based executive summaries (image-rendered slides generated from markdown definitions, with multiple selectable slide templates and layouts)
-* Voice readout + sync call integration (AI agent joins conference calls, delivers incident briefings, and listens for task directives using markdown-driven scripts and templates)
-* Cross-incident pattern detection
-* Prompt-salted AI analysis modules
-
----
-
-# 10. Voice Readout & Sync Call System
-
-## 10.1 Concept
-
-The system supports synchronous incident briefings via live conference calls.
-
-An AI agent can:
-
-* Join a call (Zoom / Meet / Slack / Discord)
-* Deliver a structured verbal briefing
-* Summarize the last 24 hours of activity
-* Highlight key risks and actions
-* Listen for follow-up instructions
-
-This acts as an "AI Incident Commander Assistant".
-
----
-
-## 10.2 Markdown-Driven Briefing Templates
-
-All readouts are generated from markdown templates.
-
-Example structure:
-
-```md
-# Incident Briefing Template
-
-## Incident Overview
-- ID: {{incident_id}}
-- Severity: {{severity}}
-- Status: {{status}}
-
-## Last 24 Hours
-{{timeline_summary}}
-
-## Key Risks
-{{risk_summary}}
-
-## Actions Taken
-{{actions_taken}}
-
-## Recommended Next Steps
-{{next_steps}}
-```
-
-The markdown is:
-
-* Parsed into structured sections
-* Converted into speech via TTS
-* Optionally rendered into slides in parallel
-
----
-
-## 10.3 Live Call Behavior
-
-During a call, the agent:
-
-1. Delivers initial briefing
-2. Waits for human input
-3. Detects intents such as:
-
-   * "assign task"
-   * "summarize again"
-   * "drill into timeline"
-4. Triggers workflows or creates tasks
-
----
-
-## 10.4 Integration Points
-
-* Slack Huddles
-* Discord Voice
-* Zoom / Google Meet
-
-This connects directly to:
-
-* Workflows (execution)
-* Skills (analysis)
-* Artifacts (context)
-
----
-
-## 10.5 Design Intent
-
-This feature enables:
-
-* Executive-friendly incident updates
-* Hands-free situational awareness
-* Real-time command interface for AI agents
-
-It bridges:
-
-"Dashboard → Conversation → Action"
-
----
-
-# 11. Summary
-
-The Incident Console represents a unified IR workspace where:
-
-* Incidents are projects
-* Tabs are investigation surfaces
-* The right pane is institutional memory
-* The left pane is live operations
-* The bottom pane is automation
-* The voice layer enables synchronous human-AI collaboration
-
-It is designed for high-tempo cyber incident response with AI-native workflows.
-
-This document can serve as:
-
-* A product requirements foundation
-* A system architecture discussion draft
-* A pitch artifact
-* A roadmap anchor
-
----
-
-End of Artifact
-
----
-
-# 10. Summary
-
-The Incident Console represents a unified IR workspace where:
-
-* Incidents are projects
-* Tabs are investigation surfaces
-* The right pane is institutional memory
-* The left pane is live operations
-* The bottom pane is automation
-
-It is designed for high-tempo cyber incident response with AI-native workflows.
-
-This document can serve as:
-
-* A product requirements foundation
-* A system architecture discussion draft
-* A pitch artifact
-* A roadmap anchor
-
----
-
-End of Artifact
+* AI-assisted triage summaries
+* Priority scoring
+* Automatic incident draft generation
