@@ -1,0 +1,219 @@
+import React, { useState } from "react";
+
+/**
+ * IncidentResponseUI
+ *
+ * Fixed: Wrapped adjacent JSX elements in a single parent container
+ * to resolve "Adjacent JSX elements must be wrapped" error.
+ *
+ * Added:
+ * - Minimal render test component
+ * - Basic structural test helpers
+ */
+
+// -----------------------------
+// Types
+// -----------------------------
+
+type SectionKey = "Chat" | "Overview" | "Timeline" | "Artifacts" | "Slack";
+
+interface Incident {
+  id: string;
+  title: string;
+  sections: SectionKey[];
+}
+
+// -----------------------------
+// Mock Data
+// -----------------------------
+
+const initialIncidents: Incident[] = [
+  {
+    id: "INC-1001",
+    title: "Credential Stuffing Attack",
+    sections: ["Chat", "Overview", "Timeline", "Artifacts", "Slack"],
+  },
+  {
+    id: "INC-1002",
+    title: "Suspicious OAuth Token Abuse",
+    sections: ["Chat", "Overview", "Timeline", "Artifacts", "Slack"],
+  },
+  {
+    id: "INC-1003",
+    title: "AI Agent Crawling Anomaly",
+    sections: ["Chat", "Overview", "Timeline", "Artifacts", "Slack"],
+  },
+];
+
+const rightPaneSections = [
+  "Workflows",
+  "Knowledge Base",
+  "Historic RCAs / SEV1s",
+  "Skills",
+  "Data Sources",
+  "MCPs / Integrations",
+  "Intakes",
+];
+
+// -----------------------------
+// Component
+// -----------------------------
+
+export default function IncidentResponseUI() {
+  const [incidents] = useState<Incident[]>(initialIncidents);
+  const [activeIncidentId, setActiveIncidentId] = useState<string>(
+    initialIncidents[0].id
+  );
+  const [activeSection, setActiveSection] = useState<SectionKey>("Chat");
+  const [collapsedIncidents, setCollapsedIncidents] = useState<
+    Record<string, boolean>
+  >({});
+  const [collapsedRightPane, setCollapsedRightPane] = useState<
+    Record<string, boolean>
+  >({});
+
+  const activeIncident = incidents.find(
+    (incident) => incident.id === activeIncidentId
+  );
+
+  const toggleIncidentCollapse = (id: string) => {
+    setCollapsedIncidents((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const toggleRightPaneCollapse = (section: string) => {
+    setCollapsedRightPane((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  // -----------------------------
+  // IMPORTANT FIX
+  // Entire return wrapped in single parent <div>
+  // -----------------------------
+
+  return (
+    <div className="flex h-screen">
+      {/* Left Pane - Incidents */}
+      <div className="w-64 border-r p-4 overflow-y-auto">
+        <h2 className="font-bold mb-4">Active Incidents</h2>
+        {incidents.map((incident) => {
+          const isCollapsed = collapsedIncidents[incident.id];
+          return (
+            <div key={incident.id} className="mb-3">
+              <div
+                className="cursor-pointer font-semibold"
+                onClick={() => toggleIncidentCollapse(incident.id)}
+              >
+                {incident.title}
+              </div>
+              {!isCollapsed && (
+                <div className="ml-3 mt-2">
+                  {incident.sections.map((section) => (
+                    <div
+                      key={section}
+                      className="cursor-pointer text-sm mb-1"
+                      onClick={() => {
+                        setActiveIncidentId(incident.id);
+                        setActiveSection(section);
+                      }}
+                    >
+                      {section}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Center Pane */}
+      <div className="flex-1 p-6 overflow-y-auto">
+        {activeIncident && (
+          <>
+            <h1 className="text-xl font-bold mb-2">
+              {activeIncident.title}
+            </h1>
+            <h2 className="text-md font-semibold mb-4">
+              Section: {activeSection}
+            </h2>
+            <div className="border p-4 rounded">
+              Content placeholder for {activeSection}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Right Pane */}
+      <div className="w-72 border-l p-4 overflow-y-auto">
+        <h2 className="font-bold mb-4">Resources</h2>
+        {rightPaneSections.map((section) => {
+          const isCollapsed = collapsedRightPane[section];
+          return (
+            <div key={section} className="mb-3">
+              <div
+                className="cursor-pointer font-semibold"
+                onClick={() => toggleRightPaneCollapse(section)}
+              >
+                {section}
+              </div>
+              {!isCollapsed && (
+                <div className="ml-3 text-sm mt-1">
+                  <div>README</div>
+                  <div>Example 1</div>
+                  <div>Example 2</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bottom Background Task Panel */}
+      <div className="fixed bottom-0 left-0 right-0 border-t bg-gray-50 p-3 text-sm">
+        Background Tasks: Agent jobs, log ingestion, enrichment pipelines
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------
+// Basic Structural Tests
+// -----------------------------
+
+/**
+ * NOTE:
+ * These are lightweight structural tests.
+ * They assume a test runner like Jest + React Testing Library.
+ */
+
+/*
+import { render, screen } from "@testing-library/react";
+import IncidentResponseUI from "./index";
+
+describe("IncidentResponseUI", () => {
+  test("renders Active Incidents header", () => {
+    render(<IncidentResponseUI />);
+    expect(screen.getByText("Active Incidents")).toBeInTheDocument();
+  });
+
+  test("renders right pane Resources header", () => {
+    render(<IncidentResponseUI />);
+    expect(screen.getByText("Resources")).toBeInTheDocument();
+  });
+
+  test("renders at least one incident", () => {
+    render(<IncidentResponseUI />);
+    expect(screen.getByText("Credential Stuffing Attack")).toBeInTheDocument();
+  });
+
+  test("renders default section Chat", () => {
+    render(<IncidentResponseUI />);
+    expect(screen.getByText(/Section: Chat/)).toBeInTheDocument();
+  });
+});
+*/
