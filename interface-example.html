@@ -5,51 +5,194 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Incident Console Demo</title>
     <style>
-      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+      :root {
+        color-scheme: dark;
+        font-family: "SFMono-Regular", "Liberation Mono", "Cascadia Mono", "Menlo", monospace;
+        --bg: #050805;
+        --bg-elevated: #0a110a;
+        --bg-panel: #0d150d;
+        --bg-strong: #101a10;
+        --line: #1b3a1b;
+        --line-bright: #2a5a2a;
+        --text: #d6f5cf;
+        --muted: #7cb37c;
+        --accent: #7dff8a;
+        --accent-soft: rgba(125, 255, 138, 0.12);
+        --warning: #f6d365;
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; background: #111827; color: #e5e7eb; }
-      .topbar,.footer { height: 52px; display:flex; align-items:center; padding:0 16px; background:#0f172a; }
-      .topbar { border-bottom:1px solid #374151; }
-      .footer { border-top:1px solid #374151; color:#9ca3af; }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top, rgba(125, 255, 138, 0.08), transparent 28%),
+          linear-gradient(180deg, #071007 0%, #040604 100%);
+        color: var(--text);
+        text-shadow: 0 0 10px rgba(125, 255, 138, 0.06);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.02) 0,
+            rgba(255, 255, 255, 0.02) 1px,
+            transparent 1px,
+            transparent 3px
+          );
+        opacity: 0.25;
+      }
+      .topbar,.footer {
+        height: 52px;
+        display:flex;
+        align-items:center;
+        padding:0 16px;
+        background: linear-gradient(180deg, #0d170d 0%, #091009 100%);
+      }
+      .topbar {
+        border-bottom:1px solid var(--line-bright);
+        color: var(--accent);
+        justify-content: space-between;
+        box-shadow: inset 0 -1px 0 rgba(125, 255, 138, 0.08);
+      }
+      .footer {
+        border-top:1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+      }
       .layout { display:grid; grid-template-columns:300px 1fr 320px; height:calc(100vh - 104px); }
-      .pane { overflow:auto; padding:16px; }
-      .left { border-right:1px solid #374151; }
-      .right { border-left:1px solid #374151; }
-      h2 { margin:0 0 12px; font-size:15px; }
-      h3 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; }
-      .group { margin-bottom:10px; border:1px solid #1f2937; border-radius:8px; overflow:hidden; }
-      .group-title { font-weight:600; color:#f3f4f6; width:100%; text-align:left; background:#111827; border:0; border-bottom:1px solid #1f2937; padding:8px 10px; cursor:pointer; }
-      .group-title:hover { background:#1f2937; }
+      .pane {
+        overflow:auto;
+        padding:16px;
+        background: rgba(6, 10, 6, 0.72);
+        backdrop-filter: blur(2px);
+      }
+      .left { border-right:1px solid var(--line); }
+      .right { border-left:1px solid var(--line); }
+      h2 {
+        margin:0 0 12px;
+        font-size:15px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      h3 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:var(--warning); }
+      .group {
+        margin-bottom:10px;
+        border:1px solid var(--line);
+        border-radius:2px;
+        overflow:hidden;
+        background: linear-gradient(180deg, rgba(12, 20, 12, 0.96) 0%, rgba(7, 12, 7, 0.98) 100%);
+        box-shadow: inset 0 0 0 1px rgba(125, 255, 138, 0.03);
+      }
+      .group-title {
+        font-weight:600;
+        color: var(--text);
+        width:100%;
+        text-align:left;
+        background: linear-gradient(180deg, #121d12 0%, #0d150d 100%);
+        border:0;
+        border-bottom:1px solid var(--line);
+        padding:8px 10px;
+        cursor:pointer;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .group-title:hover { background: #142214; color: var(--accent); }
       .group-files { padding:6px; }
-      .nested-group { margin:6px 0 2px; border:1px solid #172033; border-radius:6px; overflow:hidden; }
-      .nested-group .group-title { padding:7px 10px; background:#0f172a; border-bottom-color:#172033; font-size:12px; }
+      .nested-group { margin:6px 0 2px; border:1px solid #163016; border-radius:2px; overflow:hidden; background: #091009; }
+      .nested-group .group-title { padding:7px 10px; background:#0b130b; border-bottom-color:#163016; font-size:12px; }
       .nested-group .group-files { padding:4px 6px 6px; }
-      .muted { color:#94a3b8; font-size:13px; }
-      .link { width:100%; text-align:left; background:transparent; border:0; color:#cbd5e1; padding:7px 10px; margin:2px 0; border-radius:6px; cursor:pointer; }
-      .link:hover { background:#1f2937; }
-      .link.active { background:#1d4ed8; color:#eff6ff; }
-      .tabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid #374151; padding-bottom:10px; margin-bottom:14px; }
-      .tab { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-size:12px; background:#1f2937; border:1px solid #374151; cursor:pointer; }
-      .tab.active { background:#0ea5e9; color:#082f49; border-color:#0284c7; }
+      .muted { color:var(--muted); font-size:13px; }
+      .link {
+        width:100%;
+        text-align:left;
+        background:transparent;
+        border:0;
+        color:#b7dcb7;
+        padding:7px 10px;
+        margin:2px 0;
+        border-radius:2px;
+        cursor:pointer;
+      }
+      .link:hover { background:var(--accent-soft); color: var(--accent); }
+      .link.active {
+        background: rgba(125, 255, 138, 0.16);
+        color: var(--accent);
+        box-shadow: inset 2px 0 0 var(--accent);
+      }
+      .tabs {
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+        border-bottom:1px solid var(--line);
+        padding-bottom:10px;
+        margin-bottom:14px;
+      }
+      .tab {
+        display:flex;
+        align-items:center;
+        gap:8px;
+        padding:6px 10px;
+        border-radius:2px;
+        font-size:12px;
+        background:#0f170f;
+        border:1px solid var(--line);
+        cursor:pointer;
+      }
+      .tab.active { background: rgba(125, 255, 138, 0.14); color: var(--accent); border-color: var(--line-bright); }
       .tab button { border:0; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; }
       .viewer-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
-      .view-toggle { display:inline-flex; background:#111827; border:1px solid #374151; border-radius:999px; padding:3px; }
-      .view-toggle button { border:0; background:transparent; color:#cbd5e1; padding:5px 10px; border-radius:999px; cursor:pointer; font-size:12px; }
-      .view-toggle button.active { background:#0ea5e9; color:#082f49; }
-      .viewer-surface { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:14px; min-height:210px; }
+      .view-toggle { display:inline-flex; background:#0a110a; border:1px solid var(--line); border-radius:2px; padding:3px; }
+      .view-toggle button { border:0; background:transparent; color:#9ccc9c; padding:5px 10px; border-radius:2px; cursor:pointer; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; }
+      .view-toggle button.active { background: rgba(125, 255, 138, 0.16); color: var(--accent); }
+      .viewer-surface {
+        background:
+          linear-gradient(180deg, rgba(12, 20, 12, 0.94) 0%, rgba(7, 11, 7, 0.98) 100%);
+        border:1px solid var(--line-bright);
+        border-radius:2px;
+        padding:14px;
+        min-height:210px;
+        box-shadow: inset 0 0 24px rgba(125, 255, 138, 0.03);
+      }
       pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; }
       .rendered { line-height:1.6; }
-      .rendered h1,.rendered h2,.rendered h3 { text-transform:none; letter-spacing:normal; color:#f8fafc; margin-top:0; }
+      .rendered h1,.rendered h2,.rendered h3 { text-transform:none; letter-spacing:normal; color:var(--accent); margin-top:0; }
       .rendered p:first-child, .rendered ul:first-child { margin-top:0; }
-      .rendered code { background:#111827; border-radius:4px; padding:1px 4px; color:#bfdbfe; }
+      .rendered code { background:#111811; border-radius:2px; padding:1px 4px; color:var(--warning); }
       .rendered ul { padding-left:20px; }
       .subsection { margin-top:18px; }
-      .filter-input { width:100%; background:#0b1220; border:1px solid #1f2937; border-radius:8px; color:#e5e7eb; padding:8px 10px; margin-bottom:10px; }
-      .filter-input::placeholder { color:#64748b; }
+      .filter-input {
+        width:100%;
+        background:#091009;
+        border:1px solid var(--line);
+        border-radius:2px;
+        color:var(--text);
+        padding:8px 10px;
+        margin-bottom:10px;
+        font: inherit;
+      }
+      .filter-input:focus { outline: none; border-color: var(--line-bright); box-shadow: 0 0 0 1px rgba(125, 255, 138, 0.12); }
+      .filter-input::placeholder { color:#537553; }
+      .topbar-title { display:flex; align-items:center; gap:10px; }
+      .traffic { display:flex; gap:6px; }
+      .traffic span { width:10px; height:10px; border-radius:50%; display:block; }
+      .traffic span:nth-child(1) { background:#ff6b6b; }
+      .traffic span:nth-child(2) { background:#f6d365; }
+      .traffic span:nth-child(3) { background:#7dff8a; }
+      .shell-meta { color: var(--muted); font-size:12px; }
     </style>
   </head>
   <body>
-    <div class="topbar">Incident Console Demo • Static file-backed SPA</div>
+    <div class="topbar">
+      <div class="topbar-title">
+        <div class="traffic"><span></span><span></span><span></span></div>
+        <div>incident-console@asoc:~</div>
+      </div>
+      <div class="shell-meta">tty7 :: static-demo-session</div>
+    </div>
     <div class="layout">
       <aside class="pane left">
         <h2>Active Incidents</h2>
@@ -82,7 +225,7 @@
       </main>
       <aside class="pane right"><h2>Resources</h2><div id="resources"></div></aside>
     </div>
-    <div class="footer">Background tasks: correlation jobs, enrichments, and triage automation.</div>
+    <div class="footer">$ background-jobs --follow correlation memory-analysis ioc-enrichment triage</div>
     <script>
       const resourceLabels = {
         workflows: 'Templates',
