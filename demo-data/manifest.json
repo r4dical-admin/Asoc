@@ -3,17 +3,68 @@
     {
       "id": "INC-1001",
       "title": "Credential Stuffing Attack",
-      "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
+      "files": ["artifacts.md", "overview.md", "slack.md", "timeline.md"],
+      "chats": [
+        {
+          "label": "Analyst / Maya",
+          "owner": "maya",
+          "file": "chat-maya.md"
+        },
+        {
+          "label": "Analyst / Jordan",
+          "owner": "jordan",
+          "file": "chat-jordan.md"
+        },
+        {
+          "label": "Agent / Triage Template Runner",
+          "owner": "triage-agent",
+          "file": "chat-triage-agent.md"
+        }
+      ]
     },
     {
       "id": "INC-1002",
       "title": "Suspicious OAuth Token Abuse",
-      "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
+      "files": ["artifacts.md", "overview.md", "slack.md", "timeline.md"],
+      "chats": [
+        {
+          "label": "Analyst / Noa",
+          "owner": "noa",
+          "file": "chat-noa.md"
+        },
+        {
+          "label": "Analyst / Eli",
+          "owner": "eli",
+          "file": "chat-eli.md"
+        },
+        {
+          "label": "Agent / Memory Analysis Worker",
+          "owner": "memory-analysis-agent",
+          "file": "chat-memory-agent.md"
+        }
+      ]
     },
     {
       "id": "INC-1003",
       "title": "AI Agent Crawling Anomaly",
-      "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
+      "files": ["artifacts.md", "overview.md", "slack.md", "timeline.md"],
+      "chats": [
+        {
+          "label": "Analyst / Rina",
+          "owner": "rina",
+          "file": "chat-rina.md"
+        },
+        {
+          "label": "Analyst / Tom",
+          "owner": "tom",
+          "file": "chat-tom.md"
+        },
+        {
+          "label": "Agent / IOC Enricher",
+          "owner": "ioc-enricher",
+          "file": "chat-ioc-agent.md"
+        }
+      ]
     }
   ],
   "backgroundTasks": [

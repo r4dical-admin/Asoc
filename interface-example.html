@@ -21,6 +21,9 @@
       .group-title { font-weight:600; color:#f3f4f6; width:100%; text-align:left; background:#111827; border:0; border-bottom:1px solid #1f2937; padding:8px 10px; cursor:pointer; }
       .group-title:hover { background:#1f2937; }
       .group-files { padding:6px; }
+      .nested-group { margin:6px 0 2px; border:1px solid #172033; border-radius:6px; overflow:hidden; }
+      .nested-group .group-title { padding:7px 10px; background:#0f172a; border-bottom-color:#172033; font-size:12px; }
+      .nested-group .group-files { padding:4px 6px 6px; }
       .muted { color:#94a3b8; font-size:13px; }
       .link { width:100%; text-align:left; background:transparent; border:0; color:#cbd5e1; padding:7px 10px; margin:2px 0; border-radius:6px; cursor:pointer; }
       .link:hover { background:#1f2937; }
@@ -290,12 +293,41 @@
         wrap.appendChild(title);
         wrap.appendChild(filesContainer);
         container.appendChild(wrap);
+        return filesContainer;
+      }
+
+      function appendNestedGroup(container, titleText, groupKey, files, createTab) {
+        const wrap = document.createElement('div');
+        wrap.className = 'nested-group';
+
+        const title = document.createElement('button');
+        title.className = 'group-title';
+        title.textContent = titleText;
+
+        const filesContainer = document.createElement('div');
+        filesContainer.className = 'group-files';
+
+        title.onclick = () => toggleGroup(groupKey, filesContainer);
+
+        files.forEach((entry) => {
+          const tab = createTab(entry);
+          const link = document.createElement('button');
+          link.className = 'link';
+          link.dataset.key = tab.key;
+          link.textContent = tab.navLabel || tab.label;
+          link.onclick = () => openFile(tab, true);
+          filesContainer.appendChild(link);
+        });
+
+        wrap.appendChild(title);
+        wrap.appendChild(filesContainer);
+        container.appendChild(wrap);
       }
 
       function renderIncidents(incidents) {
         incidentsContainer.innerHTML = '';
         incidents.forEach((incident) => {
-          createGroup(
+          const incidentContainer = createGroup(
             incidentsContainer,
             `${incident.id} — ${incident.title}`,
             `inc:${incident.id}`,
@@ -307,6 +339,21 @@
               path: `demo-data/incidents/${incident.id}/${file}`,
             })
           );
+
+          if (incident.chats && incident.chats.length) {
+            appendNestedGroup(
+              incidentContainer,
+              'Chat',
+              `inc:${incident.id}:chat`,
+              incident.chats,
+              (chat) => ({
+                key: `incident:${incident.id}:chat:${chat.owner}`,
+                label: `${incident.id} / Chat / ${chat.label}`,
+                navLabel: chat.label,
+                path: `demo-data/incidents/${incident.id}/${chat.file}`,
+              })
+            );
+          }
         });
       }
 
