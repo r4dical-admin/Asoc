@@ -44,6 +44,8 @@
       .rendered code { background:#111827; border-radius:4px; padding:1px 4px; color:#bfdbfe; }
       .rendered ul { padding-left:20px; }
       .subsection { margin-top:18px; }
+      .filter-input { width:100%; background:#0b1220; border:1px solid #1f2937; border-radius:8px; color:#e5e7eb; padding:8px 10px; margin-bottom:10px; }
+      .filter-input::placeholder { color:#64748b; }
     </style>
   </head>
   <body>
@@ -55,6 +57,11 @@
         <div class="subsection">
           <h3>Background Tasks</h3>
           <div id="background-tasks"></div>
+        </div>
+        <div class="subsection">
+          <h3>Old Incidents</h3>
+          <input id="old-incident-filter" class="filter-input" type="text" placeholder="Filter old incidents" />
+          <div id="old-incidents"></div>
         </div>
       </aside>
       <main class="pane workspace">
@@ -95,6 +102,8 @@
 
       const incidentsContainer = document.getElementById('incidents');
       const backgroundTasksContainer = document.getElementById('background-tasks');
+      const oldIncidentsContainer = document.getElementById('old-incidents');
+      const oldIncidentFilter = document.getElementById('old-incident-filter');
       const resourcesContainer = document.getElementById('resources');
       const tabsContainer = document.getElementById('tabs');
       const titleEl = document.getElementById('viewer-title');
@@ -106,6 +115,7 @@
 
       const fileByKey = new Map();
       state.viewMode = 'rendered';
+      state.oldIncidents = [];
 
       function escapeHtml(value) {
         return value
@@ -397,6 +407,28 @@
         );
       }
 
+      function renderOldIncidents() {
+        oldIncidentsContainer.innerHTML = '';
+        const filterValue = oldIncidentFilter.value.trim().toLowerCase();
+        const visibleIncidents = state.oldIncidents.filter((incident) => {
+          if (!filterValue) return true;
+          return `${incident.id} ${incident.title} ${incident.severity}`.toLowerCase().includes(filterValue);
+        });
+
+        createGroup(
+          oldIncidentsContainer,
+          `Archived Cases (${visibleIncidents.length})`,
+          'old-incidents:archive',
+          visibleIncidents,
+          (incident) => ({
+            key: `old-incident:${incident.id}`,
+            label: `${incident.id} / ${incident.title}`,
+            navLabel: `${incident.id} • ${incident.severity} • ${incident.closedAt}`,
+            path: `demo-data/old-incidents/${incident.file}`,
+          })
+        );
+      }
+
       async function showWelcome() {
         titleEl.textContent = 'Welcome';
         metaEl.textContent = 'demo-data/README.md';
@@ -420,14 +452,20 @@
         setViewerBody(contentEl.textContent);
       });
 
+      oldIncidentFilter.addEventListener('input', () => {
+        renderOldIncidents();
+      });
+
       async function boot() {
         try {
           const manifestResponse = await fetch('demo-data/manifest.json');
           if (!manifestResponse.ok) throw new Error('manifest.json was not found.');
 
           const manifest = await manifestResponse.json();
+          state.oldIncidents = manifest.oldIncidents || [];
           renderIncidents(manifest.incidents || []);
           renderBackgroundTasks(manifest.backgroundTasks || []);
+          renderOldIncidents();
           renderResources(manifest.resources || {});
           showWelcome();
         } catch (error) {

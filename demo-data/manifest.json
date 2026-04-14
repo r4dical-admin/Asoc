@@ -90,6 +90,29 @@
       "file": "api-abuse-enrichment.md"
     }
   ],
+  "oldIncidents": [
+    {
+      "id": "INC-0942",
+      "title": "Business Email Compromise",
+      "severity": "SEV1",
+      "closedAt": "2025-09-19",
+      "file": "inc-0942-bec.md"
+    },
+    {
+      "id": "INC-0978",
+      "title": "Identity Federation Outage",
+      "severity": "SEV1",
+      "closedAt": "2025-11-02",
+      "file": "inc-0978-identity-outage.md"
+    },
+    {
+      "id": "INC-0884",
+      "title": "Cloud Storage Token Leak",
+      "severity": "SEV2",
+      "closedAt": "2025-07-14",
+      "file": "inc-0884-storage-token-leak.md"
+    }
+  ],
   "resources": {
     "workflows": ["README.md", "auto-containment.yaml", "lateral-movement.yaml"],
     "knowledge-base": ["README.md", "c2-patterns.md", "oauth-abuse.md", "system-design.md", "tooling-deployments.md"],
