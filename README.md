@@ -46,7 +46,7 @@ Then open:
 - `interface-example.html` - static SPA that renders the incident browser experience from local files.
 - `demo-data/incidents/` - per-incident chat, overview, timeline, artifact, and Slack views.
 - `demo-data/background-tasks/` - background agent runs with task transcripts, assigned templates, and refresh timestamps.
-- `demo-data/resources/workflows/` - playbooks that tell agents how to respond once an incident is promoted.
+- `demo-data/resources/workflows/` - response templates that tell agents how to handle an incident once it is promoted.
 - `demo-data/resources/intakes/` - inbound transport documentation and rules for choosing a response template.
 - `demo-data/resources/data-sources/` - hunt entry points, sample queries, and key fields for telemetry systems.
 - `demo-data/resources/knowledge-base/` - attacker-pattern notes, system design, and tool deployment context.
@@ -180,9 +180,9 @@ Each directory is collapsible and contains:
 * README.md (explanatory document)
 * Example operational files
 
-## 5.1 Workflows
+## 5.1 Templates
 
-Automation playbooks. Defines detection-to-response orchestration.
+Response templates. Defines detection-to-response orchestration.
 
 Examples:
 

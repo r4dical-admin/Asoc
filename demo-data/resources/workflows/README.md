@@ -1,6 +1,6 @@
-# Workflows
+# Templates
 
-Automation playbooks for containment and triage.
+Response templates for containment and triage.
 
 ## Index
 
