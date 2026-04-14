@@ -60,7 +60,7 @@
       <main class="pane workspace">
         <div class="tabs" id="tabs"></div>
         <h2 id="viewer-title">Welcome</h2>
-        <p class="muted" id="viewer-meta">Open any link to load a file from demo-data/. (Requires local static server.)</p>
+        <p class="muted" id="viewer-meta">Loading welcome guide from demo-data/README.md.</p>
         <div class="viewer-toolbar">
           <div class="muted" id="viewer-status">Workspace preview is ready.</div>
           <div class="view-toggle" id="view-toggle">
@@ -69,8 +69,8 @@
           </div>
         </div>
         <div class="viewer-surface" id="viewer-surface">
-          <div class="rendered" id="viewer-rendered"><p>No file selected.</p></div>
-          <pre id="viewer-content" hidden>No file selected.</pre>
+          <div class="rendered" id="viewer-rendered"><p>Loading welcome guide...</p></div>
+          <pre id="viewer-content" hidden>Loading welcome guide...</pre>
         </div>
       </main>
       <aside class="pane right"><h2>Resources</h2><div id="resources"></div></aside>
@@ -221,10 +221,7 @@
             openFile(tab, false);
             return;
           }
-          titleEl.textContent = 'Welcome';
-          metaEl.textContent = 'Open any link to load a file from demo-data/. (Requires local static server.)';
-          statusEl.textContent = 'Workspace preview is ready.';
-          setViewerBody('No file selected.');
+          showWelcome();
         }
         renderTabs();
         refreshActiveLinks();
@@ -277,6 +274,10 @@
 
         const filesContainer = document.createElement('div');
         filesContainer.className = 'group-files';
+        if (!(groupKey in state.collapsed)) {
+          state.collapsed[groupKey] = true;
+        }
+        filesContainer.style.display = state.collapsed[groupKey] ? 'none' : 'block';
 
         title.onclick = () => toggleGroup(groupKey, filesContainer);
 
@@ -306,6 +307,10 @@
 
         const filesContainer = document.createElement('div');
         filesContainer.className = 'group-files';
+        if (!(groupKey in state.collapsed)) {
+          state.collapsed[groupKey] = true;
+        }
+        filesContainer.style.display = state.collapsed[groupKey] ? 'none' : 'block';
 
         title.onclick = () => toggleGroup(groupKey, filesContainer);
 
@@ -392,6 +397,21 @@
         );
       }
 
+      async function showWelcome() {
+        titleEl.textContent = 'Welcome';
+        metaEl.textContent = 'demo-data/README.md';
+        statusEl.textContent = `Viewing ${state.viewMode} markdown`;
+        setViewerBody('Loading welcome guide...');
+
+        try {
+          const response = await fetch('demo-data/README.md');
+          if (!response.ok) throw new Error('Welcome README was not found.');
+          setViewerBody(await response.text());
+        } catch (error) {
+          setViewerBody(`Error: ${error.message}\n\nTip: start a local static server (for example: python3 -m http.server 4173).`);
+        }
+      }
+
       viewToggle.addEventListener('click', (event) => {
         const button = event.target.closest('button[data-mode]');
         if (!button) return;
@@ -409,6 +429,7 @@
           renderIncidents(manifest.incidents || []);
           renderBackgroundTasks(manifest.backgroundTasks || []);
           renderResources(manifest.resources || {});
+          showWelcome();
         } catch (error) {
           setViewerBody(`Startup error: ${error.message}\n\nTip: open this app from a local static server, not file://.`);
         }
