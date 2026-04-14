@@ -11,20 +11,23 @@
       .topbar,.footer { height: 52px; display:flex; align-items:center; padding:0 16px; background:#0f172a; }
       .topbar { border-bottom:1px solid #374151; }
       .footer { border-top:1px solid #374151; color:#9ca3af; }
-      .layout { display:grid; grid-template-columns:290px 1fr 320px; height:calc(100vh - 104px); }
+      .layout { display:grid; grid-template-columns:300px 1fr 320px; height:calc(100vh - 104px); }
       .pane { overflow:auto; padding:16px; }
       .left { border-right:1px solid #374151; }
       .right { border-left:1px solid #374151; }
       h2 { margin:0 0 12px; font-size:15px; }
-      .group { margin-bottom:14px; }
-      .group-title { font-weight:600; margin-bottom:6px; color:#f3f4f6; }
+      .group { margin-bottom:10px; border:1px solid #1f2937; border-radius:8px; overflow:hidden; }
+      .group-title { font-weight:600; color:#f3f4f6; width:100%; text-align:left; background:#111827; border:0; border-bottom:1px solid #1f2937; padding:8px 10px; cursor:pointer; }
+      .group-title:hover { background:#1f2937; }
+      .group-files { padding:6px; }
       .muted { color:#94a3b8; font-size:13px; }
-      button.link { width:100%; text-align:left; background:transparent; border:0; color:#cbd5e1; padding:7px 10px; margin:3px 0; border-radius:6px; cursor:pointer; }
-      button.link:hover { background:#1f2937; }
-      button.link.active { background:#1d4ed8; color:#eff6ff; }
+      .link { width:100%; text-align:left; background:transparent; border:0; color:#cbd5e1; padding:7px 10px; margin:2px 0; border-radius:6px; cursor:pointer; }
+      .link:hover { background:#1f2937; }
+      .link.active { background:#1d4ed8; color:#eff6ff; }
       .tabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid #374151; padding-bottom:10px; margin-bottom:14px; }
-      .tab { padding:6px 10px; border-radius:999px; font-size:12px; background:#1f2937; border:1px solid #374151; }
+      .tab { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-size:12px; background:#1f2937; border:1px solid #374151; cursor:pointer; }
       .tab.active { background:#0ea5e9; color:#082f49; border-color:#0284c7; }
+      .tab button { border:0; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; }
       pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:14px; min-height:210px; }
     </style>
   </head>
@@ -35,7 +38,7 @@
       <main class="pane workspace">
         <div class="tabs" id="tabs"></div>
         <h2 id="viewer-title">Welcome</h2>
-        <p class="muted" id="viewer-meta">Open any link to load a file from demo-data/ via static file serving.</p>
+        <p class="muted" id="viewer-meta">Open any link to load a file from demo-data/. (Requires local static server.)</p>
         <pre id="viewer-content">No file selected.</pre>
       </main>
       <aside class="pane right"><h2>Resources</h2><div id="resources"></div></aside>
@@ -51,7 +54,13 @@
         'mcps-integrations': 'MCPs / Integrations',
         intakes: 'Intakes',
       };
-      const state = { tabs: [], activeKey: null };
+
+      const state = {
+        tabs: [],
+        activeKey: null,
+        collapsed: {},
+      };
+
       const incidentsContainer = document.getElementById('incidents');
       const resourcesContainer = document.getElementById('resources');
       const tabsContainer = document.getElementById('tabs');
@@ -59,99 +68,164 @@
       const metaEl = document.getElementById('viewer-meta');
       const contentEl = document.getElementById('viewer-content');
 
-      const createLink = (label, onClick, key) => {
-        const btn = document.createElement('button');
-        btn.className = 'link' + (state.activeKey === key ? ' active' : '');
-        btn.textContent = label;
-        btn.onclick = onClick;
-        btn.dataset.key = key;
-        return btn;
-      };
-
-      function renderTabs() {
-        tabsContainer.innerHTML = '';
-        state.tabs.forEach((tab) => {
-          const el = document.createElement('span');
-          el.className = 'tab' + (tab.key === state.activeKey ? ' active' : '');
-          el.textContent = tab.label;
-          tabsContainer.appendChild(el);
-        });
-      }
+      const fileByKey = new Map();
 
       function refreshActiveLinks() {
-        document.querySelectorAll('button.link').forEach((el) => {
+        document.querySelectorAll('.link').forEach((el) => {
           el.classList.toggle('active', el.dataset.key === state.activeKey);
         });
       }
 
-      function addTab(tab) {
-        if (!state.tabs.some((item) => item.key === tab.key)) state.tabs.push(tab);
-        state.activeKey = tab.key;
+      function renderTabs() {
+        tabsContainer.innerHTML = '';
+        state.tabs.forEach((tab) => {
+          const tabEl = document.createElement('div');
+          tabEl.className = 'tab' + (tab.key === state.activeKey ? ' active' : '');
+
+          const nameBtn = document.createElement('button');
+          nameBtn.textContent = tab.label;
+          nameBtn.onclick = () => openFile(tab, false);
+
+          const closeBtn = document.createElement('button');
+          closeBtn.textContent = '×';
+          closeBtn.title = 'Close tab';
+          closeBtn.onclick = (event) => {
+            event.stopPropagation();
+            closeTab(tab.key);
+          };
+
+          tabEl.appendChild(nameBtn);
+          tabEl.appendChild(closeBtn);
+          tabsContainer.appendChild(tabEl);
+        });
+      }
+
+      function closeTab(key) {
+        state.tabs = state.tabs.filter((item) => item.key !== key);
+        if (state.activeKey === key) {
+          state.activeKey = state.tabs.length ? state.tabs[state.tabs.length - 1].key : null;
+          if (state.activeKey) {
+            const tab = fileByKey.get(state.activeKey);
+            openFile(tab, false);
+            return;
+          }
+          titleEl.textContent = 'Welcome';
+          metaEl.textContent = 'Open any link to load a file from demo-data/. (Requires local static server.)';
+          contentEl.textContent = 'No file selected.';
+        }
         renderTabs();
         refreshActiveLinks();
       }
 
-      async function openFile(tab) {
-        addTab(tab);
+      function toggleGroup(key, filesContainer) {
+        state.collapsed[key] = !state.collapsed[key];
+        filesContainer.style.display = state.collapsed[key] ? 'none' : 'block';
+      }
+
+      function addTab(tab) {
+        if (!state.tabs.some((item) => item.key === tab.key)) {
+          state.tabs.push(tab);
+        }
+        state.activeKey = tab.key;
+        fileByKey.set(tab.key, tab);
+        renderTabs();
+        refreshActiveLinks();
+      }
+
+      async function openFile(tab, addToTabs = true) {
+        if (addToTabs) addTab(tab);
+        else {
+          state.activeKey = tab.key;
+          renderTabs();
+          refreshActiveLinks();
+        }
+
         titleEl.textContent = tab.label;
         metaEl.textContent = tab.path;
         contentEl.textContent = 'Loading...';
+
         try {
-          const res = await fetch(tab.path);
-          if (!res.ok) throw new Error('Unable to load file.');
-          contentEl.textContent = await res.text();
+          const response = await fetch(tab.path);
+          if (!response.ok) throw new Error(`Unable to load ${tab.path}`);
+          contentEl.textContent = await response.text();
         } catch (error) {
-          contentEl.textContent = `Error: ${error.message}`;
+          contentEl.textContent = `Error: ${error.message}\n\nTip: start a local static server (for example: python3 -m http.server 4173).`;
         }
+      }
+
+      function createGroup(container, titleText, groupKey, files, createTab) {
+        const wrap = document.createElement('div');
+        wrap.className = 'group';
+
+        const title = document.createElement('button');
+        title.className = 'group-title';
+        title.textContent = titleText;
+
+        const filesContainer = document.createElement('div');
+        filesContainer.className = 'group-files';
+
+        title.onclick = () => toggleGroup(groupKey, filesContainer);
+
+        files.forEach((file) => {
+          const tab = createTab(file);
+          const link = document.createElement('button');
+          link.className = 'link';
+          link.dataset.key = tab.key;
+          link.textContent = file;
+          link.onclick = () => openFile(tab, true);
+          filesContainer.appendChild(link);
+        });
+
+        wrap.appendChild(title);
+        wrap.appendChild(filesContainer);
+        container.appendChild(wrap);
       }
 
       function renderIncidents(incidents) {
         incidentsContainer.innerHTML = '';
         incidents.forEach((incident) => {
-          const wrap = document.createElement('div');
-          wrap.className = 'group';
-          const title = document.createElement('div');
-          title.className = 'group-title';
-          title.textContent = `${incident.id} — ${incident.title}`;
-          wrap.appendChild(title);
-
-          incident.files.forEach((file) => {
-            const path = `demo-data/incidents/${incident.id}/${file}`;
-            const key = `incident:${incident.id}:${file}`;
-            wrap.appendChild(createLink(file, () => openFile({ key, label: `${incident.id} / ${file}`, path }), key));
-          });
-          incidentsContainer.appendChild(wrap);
+          createGroup(
+            incidentsContainer,
+            `${incident.id} — ${incident.title}`,
+            `inc:${incident.id}`,
+            incident.files,
+            (file) => ({
+              key: `incident:${incident.id}:${file}`,
+              label: `${incident.id} / ${file}`,
+              path: `demo-data/incidents/${incident.id}/${file}`,
+            })
+          );
         });
       }
 
       function renderResources(resources) {
         resourcesContainer.innerHTML = '';
         Object.entries(resources).forEach(([section, files]) => {
-          const wrap = document.createElement('div');
-          wrap.className = 'group';
-          const title = document.createElement('div');
-          title.className = 'group-title';
-          title.textContent = resourceLabels[section] || section;
-          wrap.appendChild(title);
-
-          files.forEach((file) => {
-            const path = `demo-data/resources/${section}/${file}`;
-            const key = `resource:${section}:${file}`;
-            wrap.appendChild(createLink(file, () => openFile({ key, label: `${resourceLabels[section] || section} / ${file}`, path }), key));
-          });
-          resourcesContainer.appendChild(wrap);
+          const label = resourceLabels[section] || section;
+          createGroup(
+            resourcesContainer,
+            label,
+            `res:${section}`,
+            files,
+            (file) => ({
+              key: `resource:${section}:${file}`,
+              label: `${label} / ${file}`,
+              path: `demo-data/resources/${section}/${file}`,
+            })
+          );
         });
       }
 
       async function boot() {
         try {
-          const res = await fetch('demo-data/manifest.json');
-          if (!res.ok) throw new Error('Manifest missing.');
-          const manifest = await res.json();
-          renderIncidents(manifest.incidents);
-          renderResources(manifest.resources);
+          const manifestResponse = await fetch('demo-data/manifest.json');
+          if (!manifestResponse.ok) throw new Error('manifest.json was not found.');
+
+          const manifest = await manifestResponse.json();
+          renderIncidents(manifest.incidents || []);
+          renderResources(manifest.resources || {});
         } catch (error) {
-          contentEl.textContent = `Startup error: ${error.message}`;
+          contentEl.textContent = `Startup error: ${error.message}\n\nTip: open this app from a local static server, not file://.`;
         }
       }
 

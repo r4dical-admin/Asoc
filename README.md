@@ -25,10 +25,11 @@ Then open:
 
 ### How it works
 
-- The SPA reads `demo-data/manifest.json` to know which links to show.
+- The SPA reads `demo-data/manifest.json` to build the left/right navigation.
 - Incident links map to files in `demo-data/incidents/<incident-id>/`.
 - Resource links map to files in `demo-data/resources/<section>/`.
 - Clicking a link fetches the backing file and renders it in the center workspace.
+- Navigation groups are collapsible and opened files are tracked as closeable tabs.
 
 ### Demo data layout
 
