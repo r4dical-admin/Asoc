@@ -120,6 +120,7 @@
     "skills": ["README.md", "credential-risk-scorer.md", "ioc-enricher.md"],
     "data-sources": ["README.md", "edr.md", "siem.md"],
     "mcps-integrations": ["README.md", "jira-ticket-creator.md", "slack-bridge.md"],
+    "settings": ["README.md", "agent-runtime.md", "server-settings.md", "users.md"],
     "intakes": ["README.md", "automated-alert-queue.md", "cron-tasks.md", "user-report-queue.md"]
   }
 }
