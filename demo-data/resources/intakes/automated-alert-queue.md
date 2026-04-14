@@ -8,6 +8,8 @@ SIEM and EDR generated alerts awaiting assignment.
 - SIEM scheduled-search alerts
 - EDR high-severity notification stream
 
+For recurring time-based runs that should kick off a template on a fixed cadence, use `cron-tasks.md` instead of this intake.
+
 ## Template routing
 
 - auth anomaly alerts -> `credential-stuffing-web-auth`
