@@ -1,0 +1,10 @@
+name: auto-containment
+intent: isolate impacted assets and contain blast radius within minutes of promotion
+required_context:
+  - auth anomalies
+  - endpoint identity
+  - incident commander approval
+steps:
+  - isolate-endpoint
+  - revoke-tokens
+  - notify-incident-channel
