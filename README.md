@@ -27,15 +27,32 @@ Then open:
 
 - The SPA reads `demo-data/manifest.json` to build the left/right navigation.
 - Incident links map to files in `demo-data/incidents/<incident-id>/`.
+- Background task links map to files in `demo-data/background-tasks/`.
 - Resource links map to files in `demo-data/resources/<section>/`.
 - Clicking a link fetches the backing file and renders it in the center workspace.
-- Navigation groups are collapsible and opened files are tracked as closeable tabs.
+- Navigation groups are collapsible, background tasks have their own tabs, and opened files are tracked as closeable tabs.
+- Markdown files can be viewed as raw source or rendered content inside the workspace.
 
 ### Demo data layout
 
 - `demo-data/manifest.json`
 - `demo-data/incidents/*/*.md`
+- `demo-data/background-tasks/*.md`
 - `demo-data/resources/*/*`
+
+### Repo Index
+
+- `README.md` - product concept, demo instructions, and structure map for the incident workspace.
+- `interface-example.html` - static SPA that renders the incident browser experience from local files.
+- `demo-data/incidents/` - per-incident chat, overview, timeline, artifact, and Slack views.
+- `demo-data/background-tasks/` - background agent runs with task transcripts, assigned templates, and refresh timestamps.
+- `demo-data/resources/workflows/` - playbooks that tell agents how to respond once an incident is promoted.
+- `demo-data/resources/intakes/` - inbound transport documentation and rules for choosing a response template.
+- `demo-data/resources/data-sources/` - hunt entry points, sample queries, and key fields for telemetry systems.
+- `demo-data/resources/knowledge-base/` - attacker-pattern notes, system design, and tool deployment context.
+- `demo-data/resources/historic-rcas-sev1s/` - prior major-incident summaries and analysis patterns worth reusing.
+- `demo-data/resources/skills/` - reusable analysis modules the background agents can invoke.
+- `demo-data/resources/mcps-integrations/` - execution bridges for Slack, Jira, and related systems.
 
 ## Incident Console — Product & Architecture Artifact
 

@@ -1,4 +1,9 @@
 name: lateral-movement
+intent: expand visibility after signs of privilege use beyond the initial host
+required_context:
+  - host relationship graph
+  - privileged account history
+  - memory capture availability
 steps:
   - map-host-relationships
   - disable-suspicious-accounts

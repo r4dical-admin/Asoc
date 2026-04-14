@@ -16,9 +16,32 @@
       "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
     }
   ],
+  "backgroundTasks": [
+    {
+      "id": "TASK-204",
+      "title": "Credential Stuffing Triage Agent",
+      "incident": "INC-1001",
+      "owner": "triage-agent",
+      "file": "credential-stuffing-triage.md"
+    },
+    {
+      "id": "TASK-311",
+      "title": "OAuth Memory Analysis Worker",
+      "incident": "INC-1002",
+      "owner": "memory-analysis-agent",
+      "file": "oauth-memory-analysis.md"
+    },
+    {
+      "id": "TASK-427",
+      "title": "API Abuse IOC Enricher",
+      "incident": "INC-1003",
+      "owner": "ioc-enricher",
+      "file": "api-abuse-enrichment.md"
+    }
+  ],
   "resources": {
     "workflows": ["README.md", "auto-containment.yaml", "lateral-movement.yaml"],
-    "knowledge-base": ["README.md", "c2-patterns.md", "oauth-abuse.md"],
+    "knowledge-base": ["README.md", "c2-patterns.md", "oauth-abuse.md", "system-design.md", "tooling-deployments.md"],
     "historic-rcas-sev1s": ["README.md", "sev1-email-bec.md", "sev1-identity-outage.md"],
     "skills": ["README.md", "credential-risk-scorer.md", "ioc-enricher.md"],
     "data-sources": ["README.md", "edr.md", "siem.md"],

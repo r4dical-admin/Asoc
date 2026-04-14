@@ -16,6 +16,7 @@
       .left { border-right:1px solid #374151; }
       .right { border-left:1px solid #374151; }
       h2 { margin:0 0 12px; font-size:15px; }
+      h3 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; }
       .group { margin-bottom:10px; border:1px solid #1f2937; border-radius:8px; overflow:hidden; }
       .group-title { font-weight:600; color:#f3f4f6; width:100%; text-align:left; background:#111827; border:0; border-bottom:1px solid #1f2937; padding:8px 10px; cursor:pointer; }
       .group-title:hover { background:#1f2937; }
@@ -28,18 +29,46 @@
       .tab { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-size:12px; background:#1f2937; border:1px solid #374151; cursor:pointer; }
       .tab.active { background:#0ea5e9; color:#082f49; border-color:#0284c7; }
       .tab button { border:0; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; }
-      pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:14px; min-height:210px; }
+      .viewer-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+      .view-toggle { display:inline-flex; background:#111827; border:1px solid #374151; border-radius:999px; padding:3px; }
+      .view-toggle button { border:0; background:transparent; color:#cbd5e1; padding:5px 10px; border-radius:999px; cursor:pointer; font-size:12px; }
+      .view-toggle button.active { background:#0ea5e9; color:#082f49; }
+      .viewer-surface { background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:14px; min-height:210px; }
+      pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:0; }
+      .rendered { line-height:1.6; }
+      .rendered h1,.rendered h2,.rendered h3 { text-transform:none; letter-spacing:normal; color:#f8fafc; margin-top:0; }
+      .rendered p:first-child, .rendered ul:first-child { margin-top:0; }
+      .rendered code { background:#111827; border-radius:4px; padding:1px 4px; color:#bfdbfe; }
+      .rendered ul { padding-left:20px; }
+      .subsection { margin-top:18px; }
     </style>
   </head>
   <body>
     <div class="topbar">Incident Console Demo • Static file-backed SPA</div>
     <div class="layout">
-      <aside class="pane left"><h2>Active Incidents</h2><div id="incidents"></div></aside>
+      <aside class="pane left">
+        <h2>Active Incidents</h2>
+        <div id="incidents"></div>
+        <div class="subsection">
+          <h3>Background Tasks</h3>
+          <div id="background-tasks"></div>
+        </div>
+      </aside>
       <main class="pane workspace">
         <div class="tabs" id="tabs"></div>
         <h2 id="viewer-title">Welcome</h2>
         <p class="muted" id="viewer-meta">Open any link to load a file from demo-data/. (Requires local static server.)</p>
-        <pre id="viewer-content">No file selected.</pre>
+        <div class="viewer-toolbar">
+          <div class="muted" id="viewer-status">Workspace preview is ready.</div>
+          <div class="view-toggle" id="view-toggle">
+            <button type="button" data-mode="rendered" class="active">Rendered</button>
+            <button type="button" data-mode="raw">Raw</button>
+          </div>
+        </div>
+        <div class="viewer-surface" id="viewer-surface">
+          <div class="rendered" id="viewer-rendered"><p>No file selected.</p></div>
+          <pre id="viewer-content" hidden>No file selected.</pre>
+        </div>
       </main>
       <aside class="pane right"><h2>Resources</h2><div id="resources"></div></aside>
     </div>
@@ -62,13 +91,93 @@
       };
 
       const incidentsContainer = document.getElementById('incidents');
+      const backgroundTasksContainer = document.getElementById('background-tasks');
       const resourcesContainer = document.getElementById('resources');
       const tabsContainer = document.getElementById('tabs');
       const titleEl = document.getElementById('viewer-title');
       const metaEl = document.getElementById('viewer-meta');
+      const statusEl = document.getElementById('viewer-status');
+      const viewToggle = document.getElementById('view-toggle');
+      const renderedEl = document.getElementById('viewer-rendered');
       const contentEl = document.getElementById('viewer-content');
 
       const fileByKey = new Map();
+      state.viewMode = 'rendered';
+
+      function escapeHtml(value) {
+        return value
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      function renderMarkdown(text) {
+        const lines = text.split('\n');
+        const blocks = [];
+        let paragraph = [];
+        let listItems = [];
+
+        function flushParagraph() {
+          if (paragraph.length) {
+            blocks.push(`<p>${paragraph.join(' ')}</p>`);
+            paragraph = [];
+          }
+        }
+
+        function flushList() {
+          if (listItems.length) {
+            blocks.push(`<ul>${listItems.map((item) => `<li>${item}</li>`).join('')}</ul>`);
+            listItems = [];
+          }
+        }
+
+        function formatInline(value) {
+          return escapeHtml(value)
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        }
+
+        lines.forEach((line) => {
+          if (!line.trim()) {
+            flushParagraph();
+            flushList();
+            return;
+          }
+
+          const headingMatch = line.match(/^(#{1,3})\s+(.*)$/);
+          if (headingMatch) {
+            flushParagraph();
+            flushList();
+            const level = headingMatch[1].length;
+            blocks.push(`<h${level}>${formatInline(headingMatch[2])}</h${level}>`);
+            return;
+          }
+
+          const listMatch = line.match(/^- (.*)$/);
+          if (listMatch) {
+            flushParagraph();
+            listItems.push(formatInline(listMatch[1]));
+            return;
+          }
+
+          paragraph.push(formatInline(line));
+        });
+
+        flushParagraph();
+        flushList();
+        return blocks.join('');
+      }
+
+      function setViewerBody(text) {
+        contentEl.textContent = text;
+        renderedEl.innerHTML = renderMarkdown(text);
+        const showRaw = state.viewMode === 'raw';
+        contentEl.hidden = !showRaw;
+        renderedEl.hidden = showRaw;
+        Array.from(viewToggle.querySelectorAll('button')).forEach((button) => {
+          button.classList.toggle('active', button.dataset.mode === state.viewMode);
+        });
+      }
 
       function refreshActiveLinks() {
         document.querySelectorAll('.link').forEach((el) => {
@@ -111,7 +220,8 @@
           }
           titleEl.textContent = 'Welcome';
           metaEl.textContent = 'Open any link to load a file from demo-data/. (Requires local static server.)';
-          contentEl.textContent = 'No file selected.';
+          statusEl.textContent = 'Workspace preview is ready.';
+          setViewerBody('No file selected.');
         }
         renderTabs();
         refreshActiveLinks();
@@ -142,14 +252,15 @@
 
         titleEl.textContent = tab.label;
         metaEl.textContent = tab.path;
-        contentEl.textContent = 'Loading...';
+        statusEl.textContent = `Viewing ${state.viewMode} markdown`;
+        setViewerBody('Loading...');
 
         try {
           const response = await fetch(tab.path);
           if (!response.ok) throw new Error(`Unable to load ${tab.path}`);
-          contentEl.textContent = await response.text();
+          setViewerBody(await response.text());
         } catch (error) {
-          contentEl.textContent = `Error: ${error.message}\n\nTip: start a local static server (for example: python3 -m http.server 4173).`;
+          setViewerBody(`Error: ${error.message}\n\nTip: start a local static server (for example: python3 -m http.server 4173).`);
         }
       }
 
@@ -166,12 +277,12 @@
 
         title.onclick = () => toggleGroup(groupKey, filesContainer);
 
-        files.forEach((file) => {
-          const tab = createTab(file);
+        files.forEach((entry) => {
+          const tab = createTab(entry);
           const link = document.createElement('button');
           link.className = 'link';
           link.dataset.key = tab.key;
-          link.textContent = file;
+          link.textContent = tab.navLabel || tab.label;
           link.onclick = () => openFile(tab, true);
           filesContainer.appendChild(link);
         });
@@ -192,6 +303,7 @@
             (file) => ({
               key: `incident:${incident.id}:${file}`,
               label: `${incident.id} / ${file}`,
+              navLabel: file,
               path: `demo-data/incidents/${incident.id}/${file}`,
             })
           );
@@ -210,11 +322,36 @@
             (file) => ({
               key: `resource:${section}:${file}`,
               label: `${label} / ${file}`,
+              navLabel: file,
               path: `demo-data/resources/${section}/${file}`,
             })
           );
         });
       }
+
+      function renderBackgroundTasks(tasks) {
+        backgroundTasksContainer.innerHTML = '';
+        createGroup(
+          backgroundTasksContainer,
+          'Agent Runs',
+          'background:agent-runs',
+          tasks,
+          (task) => ({
+            key: `background:${task.id}`,
+            label: `${task.id} / ${task.title}`,
+            navLabel: `${task.id} • ${task.owner}`,
+            path: `demo-data/background-tasks/${task.file}`,
+          })
+        );
+      }
+
+      viewToggle.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-mode]');
+        if (!button) return;
+        state.viewMode = button.dataset.mode;
+        statusEl.textContent = `Viewing ${state.viewMode} markdown`;
+        setViewerBody(contentEl.textContent);
+      });
 
       async function boot() {
         try {
@@ -223,9 +360,10 @@
 
           const manifest = await manifestResponse.json();
           renderIncidents(manifest.incidents || []);
+          renderBackgroundTasks(manifest.backgroundTasks || []);
           renderResources(manifest.resources || {});
         } catch (error) {
-          contentEl.textContent = `Startup error: ${error.message}\n\nTip: open this app from a local static server, not file://.`;
+          setViewerBody(`Startup error: ${error.message}\n\nTip: open this app from a local static server, not file://.`);
         }
       }
 
