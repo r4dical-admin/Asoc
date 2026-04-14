@@ -1,33 +1,40 @@
 # Asoc
 Agentic harness for security operations
 
-## Demo SPA (file-backed)
+## Demo SPA (file-backed, static)
 
-This repository now includes a demo single-page app that loads every displayed link from real local files served by a local HTTP server.
+This demo is intentionally frontend-only: every UI link points to a real file under `demo-data/`, and the SPA loads file contents directly from a **static local server**.
 
-### Run locally
+### Run locally (static server only)
+
+From the repo root, run one of these:
 
 ```bash
-node server.js
+python3 -m http.server 4173
+```
+
+or
+
+```bash
+npx serve -l 4173 .
 ```
 
 Then open:
 
-- `http://localhost:4173/`
+- `http://localhost:4173/interface-example.html`
 
 ### How it works
 
-- Left pane lists incident directories from `demo-data/incidents/*` and every file in each directory.
-- Right pane lists resource sections from `demo-data/resources/*` and every file in each section.
-- Clicking a link fetches the file through `GET /api/file?...` and loads its content in the center workspace.
-- The center pane keeps simple SPA tabs for any file the user opens.
+- The SPA reads `demo-data/manifest.json` to know which links to show.
+- Incident links map to files in `demo-data/incidents/<incident-id>/`.
+- Resource links map to files in `demo-data/resources/<section>/`.
+- Clicking a link fetches the backing file and renders it in the center workspace.
 
-### API endpoints
+### Demo data layout
 
-- `GET /api/incidents`
-- `GET /api/resources`
-- `GET /api/file?scope=incident&section=INC-1001&name=chat.md`
-- `GET /api/file?scope=resource&section=workflows&name=README.md`
+- `demo-data/manifest.json`
+- `demo-data/incidents/*/*.md`
+- `demo-data/resources/*/*`
 
 ## Incident Console — Product & Architecture Artifact
 

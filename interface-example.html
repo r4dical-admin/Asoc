@@ -5,128 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Incident Console Demo</title>
     <style>
-      :root {
-        color-scheme: dark;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      }
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
       * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        background: #111827;
-        color: #e5e7eb;
-      }
-      .layout {
-        display: grid;
-        grid-template-columns: 290px 1fr 320px;
-        height: calc(100vh - 52px);
-      }
-      .pane {
-        overflow: auto;
-        padding: 16px;
-      }
-      .left { border-right: 1px solid #374151; }
-      .right { border-left: 1px solid #374151; }
-      .topbar {
-        height: 52px;
-        display: flex;
-        align-items: center;
-        padding: 0 16px;
-        border-bottom: 1px solid #374151;
-        background: #0f172a;
-      }
-      h2 { margin: 0 0 12px; font-size: 15px; color: #f9fafb; }
-      .group { margin-bottom: 14px; }
-      .group-title {
-        font-weight: 600;
-        margin-bottom: 6px;
-        color: #f3f4f6;
-      }
-      button.link {
-        display: block;
-        width: 100%;
-        text-align: left;
-        background: transparent;
-        border: 0;
-        color: #cbd5e1;
-        padding: 7px 10px;
-        margin: 3px 0;
-        border-radius: 6px;
-        cursor: pointer;
-      }
-      button.link:hover { background: #1f2937; }
-      button.link.active {
-        background: #1d4ed8;
-        color: #eff6ff;
-      }
-      .workspace {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      }
-      .tabs {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        border-bottom: 1px solid #374151;
-        padding-bottom: 10px;
-        margin-bottom: 14px;
-      }
-      .tab {
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-size: 12px;
-        background: #1f2937;
-        color: #d1d5db;
-        border: 1px solid #374151;
-      }
-      .tab.active {
-        background: #0ea5e9;
-        color: #082f49;
-        border-color: #0284c7;
-      }
-      pre {
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-        background: #0b1220;
-        border: 1px solid #1f2937;
-        border-radius: 8px;
-        padding: 14px;
-        min-height: 210px;
-      }
-      .muted { color: #94a3b8; font-size: 13px; }
-      .footer {
-        height: 52px;
-        border-top: 1px solid #374151;
-        display: flex;
-        align-items: center;
-        padding: 0 16px;
-        background: #0f172a;
-        color: #9ca3af;
-      }
+      body { margin: 0; background: #111827; color: #e5e7eb; }
+      .topbar,.footer { height: 52px; display:flex; align-items:center; padding:0 16px; background:#0f172a; }
+      .topbar { border-bottom:1px solid #374151; }
+      .footer { border-top:1px solid #374151; color:#9ca3af; }
+      .layout { display:grid; grid-template-columns:290px 1fr 320px; height:calc(100vh - 104px); }
+      .pane { overflow:auto; padding:16px; }
+      .left { border-right:1px solid #374151; }
+      .right { border-left:1px solid #374151; }
+      h2 { margin:0 0 12px; font-size:15px; }
+      .group { margin-bottom:14px; }
+      .group-title { font-weight:600; margin-bottom:6px; color:#f3f4f6; }
+      .muted { color:#94a3b8; font-size:13px; }
+      button.link { width:100%; text-align:left; background:transparent; border:0; color:#cbd5e1; padding:7px 10px; margin:3px 0; border-radius:6px; cursor:pointer; }
+      button.link:hover { background:#1f2937; }
+      button.link.active { background:#1d4ed8; color:#eff6ff; }
+      .tabs { display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid #374151; padding-bottom:10px; margin-bottom:14px; }
+      .tab { padding:6px 10px; border-radius:999px; font-size:12px; background:#1f2937; border:1px solid #374151; }
+      .tab.active { background:#0ea5e9; color:#082f49; border-color:#0284c7; }
+      pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0b1220; border:1px solid #1f2937; border-radius:8px; padding:14px; min-height:210px; }
     </style>
   </head>
   <body>
-    <div class="topbar">Incident Console Demo • File-backed SPA</div>
+    <div class="topbar">Incident Console Demo • Static file-backed SPA</div>
     <div class="layout">
-      <aside class="pane left">
-        <h2>Active Incidents</h2>
-        <div id="incidents"></div>
-      </aside>
-
+      <aside class="pane left"><h2>Active Incidents</h2><div id="incidents"></div></aside>
       <main class="pane workspace">
         <div class="tabs" id="tabs"></div>
         <h2 id="viewer-title">Welcome</h2>
-        <p class="muted" id="viewer-meta">Open a link from either pane to load its file via the local server.</p>
+        <p class="muted" id="viewer-meta">Open any link to load a file from demo-data/ via static file serving.</p>
         <pre id="viewer-content">No file selected.</pre>
       </main>
-
-      <aside class="pane right">
-        <h2>Resources</h2>
-        <div id="resources"></div>
-      </aside>
+      <aside class="pane right"><h2>Resources</h2><div id="resources"></div></aside>
     </div>
     <div class="footer">Background tasks: correlation jobs, enrichments, and triage automation.</div>
-
     <script>
       const resourceLabels = {
         workflows: 'Workflows',
@@ -137,12 +51,7 @@
         'mcps-integrations': 'MCPs / Integrations',
         intakes: 'Intakes',
       };
-
-      const state = {
-        tabs: [],
-        activeKey: null,
-      };
-
+      const state = { tabs: [], activeKey: null };
       const incidentsContainer = document.getElementById('incidents');
       const resourcesContainer = document.getElementById('resources');
       const tabsContainer = document.getElementById('tabs');
@@ -150,62 +59,47 @@
       const metaEl = document.getElementById('viewer-meta');
       const contentEl = document.getElementById('viewer-content');
 
-      async function fetchJson(url) {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Request failed: ${url}`);
-        return response.json();
-      }
-
-      function createLink(label, onClick, key) {
+      const createLink = (label, onClick, key) => {
         const btn = document.createElement('button');
         btn.className = 'link' + (state.activeKey === key ? ' active' : '');
         btn.textContent = label;
         btn.onclick = onClick;
+        btn.dataset.key = key;
         return btn;
-      }
+      };
 
       function renderTabs() {
         tabsContainer.innerHTML = '';
         state.tabs.forEach((tab) => {
-          const item = document.createElement('span');
-          item.className = 'tab' + (tab.key === state.activeKey ? ' active' : '');
-          item.textContent = tab.label;
-          tabsContainer.appendChild(item);
+          const el = document.createElement('span');
+          el.className = 'tab' + (tab.key === state.activeKey ? ' active' : '');
+          el.textContent = tab.label;
+          tabsContainer.appendChild(el);
         });
       }
 
-      function refreshNavActiveState() {
-        document.querySelectorAll('button.link').forEach((btn) => {
-          if (btn.dataset.key === state.activeKey) btn.classList.add('active');
-          else btn.classList.remove('active');
+      function refreshActiveLinks() {
+        document.querySelectorAll('button.link').forEach((el) => {
+          el.classList.toggle('active', el.dataset.key === state.activeKey);
         });
       }
 
       function addTab(tab) {
-        if (!state.tabs.some((existing) => existing.key === tab.key)) {
-          state.tabs.push(tab);
-        }
+        if (!state.tabs.some((item) => item.key === tab.key)) state.tabs.push(tab);
         state.activeKey = tab.key;
         renderTabs();
-        refreshNavActiveState();
+        refreshActiveLinks();
       }
 
-      async function openFile(tabInfo) {
-        addTab(tabInfo);
-        titleEl.textContent = tabInfo.label;
-        metaEl.textContent = `${tabInfo.scope} • ${tabInfo.section} • ${tabInfo.file}`;
+      async function openFile(tab) {
+        addTab(tab);
+        titleEl.textContent = tab.label;
+        metaEl.textContent = tab.path;
         contentEl.textContent = 'Loading...';
-
         try {
-          const params = new URLSearchParams({
-            scope: tabInfo.scope,
-            section: tabInfo.section,
-            name: tabInfo.file,
-          });
-          const response = await fetch(`/api/file?${params.toString()}`);
-          if (!response.ok) throw new Error('Unable to load file.');
-          const text = await response.text();
-          contentEl.textContent = text;
+          const res = await fetch(tab.path);
+          if (!res.ok) throw new Error('Unable to load file.');
+          contentEl.textContent = await res.text();
         } catch (error) {
           contentEl.textContent = `Error: ${error.message}`;
         }
@@ -216,66 +110,46 @@
         incidents.forEach((incident) => {
           const wrap = document.createElement('div');
           wrap.className = 'group';
-
           const title = document.createElement('div');
           title.className = 'group-title';
-          title.textContent = incident.id;
+          title.textContent = `${incident.id} — ${incident.title}`;
           wrap.appendChild(title);
 
-          incident.files.forEach((fileName) => {
-            const key = `incident:${incident.id}:${fileName}`;
-            const link = createLink(fileName, () => openFile({
-              key,
-              label: `${incident.id} / ${fileName}`,
-              scope: 'incident',
-              section: incident.id,
-              file: fileName,
-            }), key);
-            link.dataset.key = key;
-            wrap.appendChild(link);
+          incident.files.forEach((file) => {
+            const path = `demo-data/incidents/${incident.id}/${file}`;
+            const key = `incident:${incident.id}:${file}`;
+            wrap.appendChild(createLink(file, () => openFile({ key, label: `${incident.id} / ${file}`, path }), key));
           });
-
           incidentsContainer.appendChild(wrap);
         });
       }
 
-      function renderResources(sections) {
+      function renderResources(resources) {
         resourcesContainer.innerHTML = '';
-        Object.entries(sections).forEach(([section, files]) => {
+        Object.entries(resources).forEach(([section, files]) => {
           const wrap = document.createElement('div');
           wrap.className = 'group';
-
           const title = document.createElement('div');
           title.className = 'group-title';
           title.textContent = resourceLabels[section] || section;
           wrap.appendChild(title);
 
-          files.forEach((fileName) => {
-            const key = `resource:${section}:${fileName}`;
-            const link = createLink(fileName, () => openFile({
-              key,
-              label: `${resourceLabels[section] || section} / ${fileName}`,
-              scope: 'resource',
-              section,
-              file: fileName,
-            }), key);
-            link.dataset.key = key;
-            wrap.appendChild(link);
+          files.forEach((file) => {
+            const path = `demo-data/resources/${section}/${file}`;
+            const key = `resource:${section}:${file}`;
+            wrap.appendChild(createLink(file, () => openFile({ key, label: `${resourceLabels[section] || section} / ${file}`, path }), key));
           });
-
           resourcesContainer.appendChild(wrap);
         });
       }
 
       async function boot() {
         try {
-          const [incidentsPayload, resourcesPayload] = await Promise.all([
-            fetchJson('/api/incidents'),
-            fetchJson('/api/resources'),
-          ]);
-
-          renderIncidents(incidentsPayload.incidents);
-          renderResources(resourcesPayload.sections);
+          const res = await fetch('demo-data/manifest.json');
+          if (!res.ok) throw new Error('Manifest missing.');
+          const manifest = await res.json();
+          renderIncidents(manifest.incidents);
+          renderResources(manifest.resources);
         } catch (error) {
           contentEl.textContent = `Startup error: ${error.message}`;
         }

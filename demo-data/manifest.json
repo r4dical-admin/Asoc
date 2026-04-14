@@ -1,0 +1,28 @@
+{
+  "incidents": [
+    {
+      "id": "INC-1001",
+      "title": "Credential Stuffing Attack",
+      "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
+    },
+    {
+      "id": "INC-1002",
+      "title": "Suspicious OAuth Token Abuse",
+      "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
+    },
+    {
+      "id": "INC-1003",
+      "title": "AI Agent Crawling Anomaly",
+      "files": ["artifacts.md", "chat.md", "overview.md", "slack.md", "timeline.md"]
+    }
+  ],
+  "resources": {
+    "workflows": ["README.md", "auto-containment.yaml", "lateral-movement.yaml"],
+    "knowledge-base": ["README.md", "c2-patterns.md", "oauth-abuse.md"],
+    "historic-rcas-sev1s": ["README.md", "sev1-email-bec.md", "sev1-identity-outage.md"],
+    "skills": ["README.md", "credential-risk-scorer.md", "ioc-enricher.md"],
+    "data-sources": ["README.md", "edr.md", "siem.md"],
+    "mcps-integrations": ["README.md", "jira-ticket-creator.md", "slack-bridge.md"],
+    "intakes": ["README.md", "automated-alert-queue.md", "user-report-queue.md"]
+  }
+}
