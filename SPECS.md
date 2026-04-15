@@ -1,5 +1,17 @@
 # Asoc Platform Specs (Multi-Tenant, S3-Backed, Containerized)
 
+## V1 Direction (Locked for Initial Build)
+
+For the first production build on branch `v1`, the following implementation choices are fixed:
+
+- **Frontend**: SPA web client.
+- **Backend baseline**: Supabase-backed control plane (Auth + Postgres metadata + RLS) with API as enforcement point.
+- **Agent model**: one Pi-powered runtime image with role-specific **agent profiles**.
+- **Initial profiles**: `triage`, `analysis`, `chat`.
+- **Template binding**: templates are selected/executed through profile policy + workflow mapping.
+
+These decisions resolve the prior RFC uncertainty for v1 so implementation can proceed without architecture drift.
+
 ## 1) Scope and Goals
 
 This document defines a high-level design and component specifications for evolving Asoc into a production-capable, multi-tenant platform with:
@@ -376,6 +388,27 @@ tenants/{tenant_id}/exports/{export_id}.zip
 - Idempotency keys per run to avoid duplicate triggers.
 - Detailed run outputs persisted in S3 with SQL pointers only.
 
+## 7.14 Agent Profile Registry (V1 Required)
+
+**Responsibilities**
+- Store tenant-scoped profile configuration for Pi runtime specialization.
+- Bind profile capabilities to template/workflow execution policy.
+- Provide immutable profile snapshots for task execution reproducibility.
+
+**Data Model (minimum)**
+- `agent_profile(id, tenant_id, name, role_type, model_provider, model_name, system_prompt_ref, tool_allowlist_json, template_allowlist_json, max_runtime_sec, result_schema_version, enabled, created_at, updated_at)`
+- `agent_profile_version(id, tenant_id, agent_profile_id, version, profile_object_key, sha256, created_at)`
+
+**V1 Profile Set**
+- `triage`: classify incoming alerts and choose workflow/template.
+- `analysis`: execute selected workflows and produce artifacts/results.
+- `chat`: interactive incident assistant bounded by tenant/user/incident policy.
+
+**Requirements**
+- `role_type` constrained to approved enum (`triage|analysis|chat|custom`).
+- Every scheduled intake and task execution references `agent_profile_id`.
+- Runner resolves a pinned profile version at execution start and records it in task metadata.
+
 ---
 
 ## 8) Agent Runtime Platform (Where Agent Containers Run)
@@ -470,6 +503,8 @@ Request:
 - `tenant_id` (from token; not body-authoritative)
 - `incident_id`
 - `task_type`
+- `agent_profile_id`
+- `template_id` (or `workflow_id`, canonicalized by API contract)
 - `input_refs[]` (object keys/IDs)
 - `priority`
 
@@ -512,9 +547,10 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 1. An external or internal alert is received by the intake pipeline.
 2. Intake routing rules identify the tenant and matching intake configuration.
 3. The configured triage agent is triggered with normalized alert context.
-4. Triage agent classifies the alert and selects the response template from `resources/templates`.
+4. Triage profile classifies the alert and selects the response template/workflow from the resource catalog.
 5. Triage service creates (or links to) an incident with minimal SQL metadata and S3-backed context objects.
 6. Triage service starts an analysis agent using:
+   - analysis `agent_profile_id`,
    - selected template ID/version,
    - incident ID + tenant ID,
    - relevant alert artifacts and enrichment context.
@@ -525,6 +561,7 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 
 1. Analyst opens an incident and starts chat.
 2. Chat service creates an interactive agent session bound to `tenant_id + incident_id + user_id`.
+   - session references `chat` `agent_profile_id`.
 3. Session bootstrap loads full incident context from:
    - incident pointers and linked S3 objects,
    - related tasks and artifacts,
@@ -537,6 +574,7 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 1. Tenant defines scheduled intake jobs (cron expression + triage agent + input source/query).
 2. Scheduler triggers jobs on schedule and emits intake events.
 3. Scheduled event runs the assigned triage agent.
+   - schedule references `triage` `agent_profile_id`.
 4. Triage agent either:
    - creates/updates incidents and kicks off analysis tasks, or
    - closes as no-action with an audit record.
@@ -624,14 +662,18 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 
 ---
 
-## 15) Open Decisions / RFC Items
+## 15) V1 Decisions (Resolved) + Post-V1 RFCs
 
-1. Cloud provider selection and managed service mapping.
-2. Queue technology selection (SQS/SNS, Kafka, RabbitMQ, etc.).
-3. Auth provider strategy (managed IdP vs self-hosted).
-4. Schema strategy for future cross-tenant analytics (separate warehouse).
-5. Evidence immutability policy details by incident severity/regulation.
-6. BaaS strategy decision:
-   - **Option A (recommended):** Supabase (Auth + Postgres/RLS) + S3 + managed container jobs.
-   - **Option B:** Firebase Auth + separate SQL DB + S3 + managed container jobs (higher integration complexity).
-   - Exit criteria: tenant isolation guarantees, SSO/SCIM fit, audit query performance, and operator effort.
+### Resolved for v1
+
+1. **BaaS/Auth/Metadata**: Supabase (Auth + Postgres/RLS) as the control-plane backend.
+2. **Frontend model**: SPA client consuming Core API/BFF endpoints.
+3. **Agent strategy**: one Pi runtime image with tenant-scoped role profiles (`triage`, `analysis`, `chat`).
+4. **Template execution model**: templates/workflows are selected by triage profile and executed by analysis profile with explicit profile + template IDs in task metadata.
+
+### Deferred to Post-v1 RFCs
+
+1. Cloud vendor-specific managed job mapping finalization.
+2. Long-term queue backend optimization choices at higher scale.
+3. Cross-tenant analytics warehouse strategy.
+4. Evidence immutability policy variants by regulation/severity tier.

@@ -1,9 +1,26 @@
 # Asoc
 Agentic harness for security operations
 
+## V1 Build Direction (branch: `v1`)
+
+This repository now includes a locked v1 direction for turning the demo into an actual app:
+
+- **SPA frontend** as the primary client surface.
+- **Supabase-backed control plane** for auth and relational metadata (tenant-scoped with RLS).
+- **S3-compatible object storage** for incident/task content and artifacts.
+- **Single Pi runtime image** with profile-based specialization across three v1 agent roles:
+  - `triage`
+  - `analysis`
+  - `chat`
+- **Template/workflow execution bound to agent profiles**, so profile policy controls which workflows can be selected or executed.
+
+See `SPECS.md` for the full production-oriented architecture and contracts.
+
 ## Demo SPA (file-backed, static)
 
 This demo is intentionally frontend-only: every UI link points to a real file under `demo-data/`, and the SPA loads file contents directly from a **static local server**.
+
+The demo data and interaction patterns are the reference behavior for v1 UX and workflow shape (incident-first navigation, background tasks, and template-guided agent work), while production persistence and orchestration move to Supabase + S3 + containerized agent runtime.
 
 ### Run locally (static server only)
 
