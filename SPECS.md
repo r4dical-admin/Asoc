@@ -231,6 +231,20 @@ tenants/{tenant_id}/exports/{export_id}.zip
 - JIT (just-in-time) user provisioning at first login.
 - Externalized MFA/password/reset/session policies (owned by provider).
 
+**Tech Choice Guidance (Firebase/Supabase)**
+- **Supabase can work** as a BaaS for early/mid-stage implementation if we use:
+  - Supabase Auth for user/session management,
+  - Postgres + RLS for tenant-aware metadata access patterns,
+  - Supabase Storage only for lightweight app assets (keep incident/task bulk artifacts in S3 to preserve the S3-first architecture).
+- **Firebase is less aligned** for this design because:
+  - Firestore document patterns are weaker for the SQL-style relational metadata model defined in this spec,
+  - tenant isolation for complex relational queries and audit joins is harder than Postgres/RLS patterns.
+- If choosing Supabase, prefer **hybrid mode**:
+  - Supabase for auth + SQL metadata + realtime streams,
+  - S3 as canonical artifact/object store,
+  - managed container jobs (ACS/Fargate/Cloud Run Jobs) for agent execution.
+- Keep the API as policy enforcement point (do not let clients bypass tenant policy checks even if using BaaS SDKs).
+
 ## 7.4 Incident Service
 
 **Responsibilities**
@@ -369,6 +383,19 @@ tenants/{tenant_id}/exports/{export_id}.zip
 ### 8.1 Recommended Orchestrator
 
 Use a **managed container service** that abstracts nodes and cluster operations (e.g., Azure Container Apps Jobs / AWS Fargate-based jobs / Cloud Run jobs). This aligns with the requirement to avoid Kubernetes/node management and manual capacity sizing.
+
+### 8.1.1 BaaS Compatibility with Agent Containers
+
+- BaaS platforms (Supabase/Firebase) are suitable for auth/data backend concerns, but **they are not the primary runtime for untrusted long-running agent containers**.
+- Agent execution should remain on a managed job runtime with:
+  - per-run CPU/memory/timeouts,
+  - workload identity and short-lived credentials,
+  - network egress policy controls,
+  - queue-driven autoscaling.
+- BaaS integration pattern:
+  - Core API reads/writes metadata in BaaS-backed SQL,
+  - Core API issues scoped S3 URLs/tokens,
+  - Agent jobs run externally and call back with result manifests.
 
 ### 8.2 Runtime Pattern
 
@@ -604,3 +631,7 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 3. Auth provider strategy (managed IdP vs self-hosted).
 4. Schema strategy for future cross-tenant analytics (separate warehouse).
 5. Evidence immutability policy details by incident severity/regulation.
+6. BaaS strategy decision:
+   - **Option A (recommended):** Supabase (Auth + Postgres/RLS) + S3 + managed container jobs.
+   - **Option B:** Firebase Auth + separate SQL DB + S3 + managed container jobs (higher integration complexity).
+   - Exit criteria: tenant isolation guarantees, SSO/SCIM fit, audit query performance, and operator effort.
