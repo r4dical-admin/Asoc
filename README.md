@@ -1,7 +1,7 @@
 # Asoc
 Agentic harness for security operations
 
-## V1 Build Direction (branch: `v1`)
+## V1 Build Direction
 
 This repository now includes a locked v1 direction for turning the demo into an actual app:
 
@@ -16,8 +16,8 @@ This repository now includes a locked v1 direction for turning the demo into an 
   - `analysis`
   - `chat`
 - **Template/workflow execution bound to agent profiles**, so profile policy controls which workflows can be selected or executed.
-- **Template/workflow IDs**: ticket-style IDs generated from names (for example `TPL-1001`), with name remaining the authoring source-of-truth.
-- **Template/workflow policy metadata**: frontmatter at the top of each template/workflow markdown defines tool permissions and runtime constraints.
+- **Template/workflow IDs**: ticket-style IDs generated at ingest from names using a stable slug + sequence format (for example `TPL-PHISHING-0042`), with name remaining the authoring source-of-truth.
+- **Template/workflow policy metadata**: frontmatter at the top of each template/workflow markdown defines tool permissions, runtime constraints, and profile compatibility.
 
 See `SPECS.md` for the full production-oriented architecture and contracts.
 

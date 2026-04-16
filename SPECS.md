@@ -11,7 +11,7 @@ For the first production build on branch `v1`, the following implementation choi
 - **Agent model**: one Pi-powered runtime image with role-specific **agent profiles**.
 - **Initial profiles**: `triage`, `analysis`, `chat`.
 - **Agent runtime platform**: Google Cloud Run Jobs.
-- **Template binding**: templates are selected/executed through profile policy + workflow mapping; template/workflow markdown frontmatter is the v1 policy surface (tools/permissions/runtime controls).
+- **Template binding**: templates are selected/executed through profile policy + workflow mapping; template/workflow markdown frontmatter is the v1 policy surface (tools/permissions/runtime controls/profile compatibility).
 
 These decisions resolve the prior RFC uncertainty for v1 so implementation can proceed without architecture drift.
 
@@ -370,8 +370,19 @@ tenants/{tenant_id}/exports/{export_id}.zip
 
 **V1 Template/Workflow Convention**
 - Authoring source remains markdown files by human-readable name.
-- System-assigned IDs are ticket-style (for example `TPL-1042`) generated at ingestion time and persisted in metadata.
-- Templates/workflows can declare execution permissions via frontmatter (tool allowlist, network constraints, timeout hints, output schema hints).
+- System-assigned IDs are ticket-style and deterministic per normalized name family (for example `TPL-PHISHING-0042`) generated at ingestion time and persisted in metadata.
+- Templates/workflows can declare execution permissions via frontmatter (tool allowlist, network constraints, timeout hints, output schema hints, allowed_profile_roles).
+
+**Frontmatter contract (v1 minimum)**
+```yaml
+name: "Phishing mailbox triage"
+id_hint: "phishing"            # optional stable family hint used in ID generation
+allowed_profile_roles: [analysis]
+tool_allowlist: ["email.search", "siem.query"]
+max_runtime_sec: 1800
+output_schema_version: "v1"
+```
+
 
 ## 7.12 Observability Stack
 
@@ -688,7 +699,7 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 6. **ORM approach**: Supabase client/query API first; optional ORM layer later if needed.
 7. **Agent strategy**: one Pi runtime image with tenant-scoped role profiles (`triage`, `analysis`, `chat`).
 8. **Template execution model**: templates/workflows are selected by triage profile and executed by analysis profile with explicit profile + template IDs in task metadata.
-9. **Template/workflow permissions**: frontmatter in template/workflow markdown is the v1 policy declaration source.
+9. **Template/workflow permissions**: frontmatter in template/workflow markdown is the v1 policy declaration source (including allowed profile roles).
 
 ### Deferred to Post-v1 RFCs
 
