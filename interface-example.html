@@ -145,9 +145,23 @@
       .tab.active { background: rgba(125, 255, 138, 0.14); color: var(--accent); border-color: var(--line-bright); }
       .tab button { border:0; background:transparent; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; }
       .viewer-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+      .viewer-actions { display:flex; align-items:center; gap:10px; }
       .view-toggle { display:inline-flex; background:#0a110a; border:1px solid var(--line); border-radius:2px; padding:3px; }
       .view-toggle button { border:0; background:transparent; color:#9ccc9c; padding:5px 10px; border-radius:2px; cursor:pointer; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; }
       .view-toggle button.active { background: rgba(125, 255, 138, 0.16); color: var(--accent); }
+      .call-button {
+        border:1px solid var(--line);
+        background:#0b130b;
+        color:var(--warning);
+        padding:6px 10px;
+        border-radius:2px;
+        cursor:pointer;
+        font: inherit;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .call-button:hover { border-color: var(--warning); background: rgba(246, 211, 101, 0.08); }
+      .call-button:disabled { cursor:not-allowed; color:#5b6d5b; border-color:#213021; background:#091009; }
       .viewer-surface {
         background:
           linear-gradient(180deg, rgba(12, 20, 12, 0.94) 0%, rgba(7, 11, 7, 0.98) 100%);
@@ -213,9 +227,12 @@
         <p class="muted" id="viewer-meta">Loading welcome guide from demo-data/README.md.</p>
         <div class="viewer-toolbar">
           <div class="muted" id="viewer-status">Workspace preview is ready.</div>
-          <div class="view-toggle" id="view-toggle">
-            <button type="button" data-mode="rendered" class="active">Rendered</button>
-            <button type="button" data-mode="raw">Raw</button>
+          <div class="viewer-actions">
+            <button type="button" id="status-call-button" class="call-button" disabled>Start Status Call</button>
+            <div class="view-toggle" id="view-toggle">
+              <button type="button" data-mode="rendered" class="active">Rendered</button>
+              <button type="button" data-mode="raw">Raw</button>
+            </div>
           </div>
         </div>
         <div class="viewer-surface" id="viewer-surface">
@@ -234,6 +251,7 @@
         skills: 'Skills',
         'data-sources': 'Data Sources',
         'mcps-integrations': 'MCPs / Integrations',
+        settings: 'Settings',
         intakes: 'Intakes',
       };
 
@@ -252,6 +270,7 @@
       const titleEl = document.getElementById('viewer-title');
       const metaEl = document.getElementById('viewer-meta');
       const statusEl = document.getElementById('viewer-status');
+      const statusCallButton = document.getElementById('status-call-button');
       const viewToggle = document.getElementById('view-toggle');
       const renderedEl = document.getElementById('viewer-rendered');
       const contentEl = document.getElementById('viewer-content');
@@ -259,6 +278,8 @@
       const fileByKey = new Map();
       state.viewMode = 'rendered';
       state.oldIncidents = [];
+      state.incidents = [];
+      state.currentTab = null;
 
       function escapeHtml(value) {
         return value
@@ -368,6 +389,7 @@
       function closeTab(key) {
         state.tabs = state.tabs.filter((item) => item.key !== key);
         if (state.activeKey === key) {
+          state.currentTab = null;
           state.activeKey = state.tabs.length ? state.tabs[state.tabs.length - 1].key : null;
           if (state.activeKey) {
             const tab = fileByKey.get(state.activeKey);
@@ -378,6 +400,7 @@
         }
         renderTabs();
         refreshActiveLinks();
+        syncStatusCallButton();
       }
 
       function toggleGroup(key, filesContainer) {
@@ -393,6 +416,28 @@
         fileByKey.set(tab.key, tab);
         renderTabs();
         refreshActiveLinks();
+        syncStatusCallButton();
+      }
+
+      function findIncidentById(incidentId) {
+        return state.incidents.find((incident) => incident.id === incidentId);
+      }
+
+      function getStatusCallTab() {
+        if (!state.currentTab || !state.currentTab.incidentId) return null;
+        const incident = findIncidentById(state.currentTab.incidentId);
+        if (!incident || !incident.statusCallFile) return null;
+        return {
+          key: `status-call:${incident.id}`,
+          label: `${incident.id} / Status Call`,
+          navLabel: 'Status Call',
+          incidentId: incident.id,
+          path: `demo-data/incidents/${incident.id}/${incident.statusCallFile}`,
+        };
+      }
+
+      function syncStatusCallButton() {
+        statusCallButton.disabled = !getStatusCallTab();
       }
 
       async function openFile(tab, addToTabs = true) {
@@ -403,9 +448,11 @@
           refreshActiveLinks();
         }
 
+        state.currentTab = tab;
         titleEl.textContent = tab.label;
         metaEl.textContent = tab.path;
         statusEl.textContent = `Viewing ${state.viewMode} markdown`;
+        syncStatusCallButton();
         setViewerBody('Loading...');
 
         try {
@@ -494,6 +541,7 @@
               key: `incident:${incident.id}:${file}`,
               label: `${incident.id} / ${file}`,
               navLabel: file,
+              incidentId: incident.id,
               path: `demo-data/incidents/${incident.id}/${file}`,
             })
           );
@@ -508,6 +556,7 @@
                 key: `incident:${incident.id}:chat:${chat.owner}`,
                 label: `${incident.id} / Chat / ${chat.label}`,
                 navLabel: chat.label,
+                incidentId: incident.id,
                 path: `demo-data/incidents/${incident.id}/${chat.file}`,
               })
             );
@@ -595,6 +644,12 @@
         setViewerBody(contentEl.textContent);
       });
 
+      statusCallButton.addEventListener('click', () => {
+        const statusCallTab = getStatusCallTab();
+        if (!statusCallTab) return;
+        openFile(statusCallTab, true);
+      });
+
       oldIncidentFilter.addEventListener('input', () => {
         renderOldIncidents();
       });
@@ -605,8 +660,9 @@
           if (!manifestResponse.ok) throw new Error('manifest.json was not found.');
 
           const manifest = await manifestResponse.json();
+          state.incidents = manifest.incidents || [];
           state.oldIncidents = manifest.oldIncidents || [];
-          renderIncidents(manifest.incidents || []);
+          renderIncidents(state.incidents);
           renderBackgroundTasks(manifest.backgroundTasks || []);
           renderOldIncidents();
           renderResources(manifest.resources || {});
