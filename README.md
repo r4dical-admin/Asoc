@@ -1,9 +1,33 @@
 # Asoc
 Agentic harness for security operations
 
+## V1 Build Direction (branch: `v1`)
+
+This repository now includes a locked v1 direction for turning the demo into an actual app:
+
+- **SPA frontend** as the primary client surface.
+- **SPA hosting**: Cloudflare Pages (with Cloudflare edge routing/WAF in front of API as needed).
+- **Supabase-backed control plane** for auth and relational metadata (tenant-scoped with RLS).
+- **Queueing**: Supabase/Postgres-native queue first (e.g., `pgmq` pattern) before introducing a separate broker.
+- **S3-compatible object storage** for incident/task content and artifacts.
+- **Agent execution runtime**: Google Cloud Run Jobs.
+- **Single Pi runtime image** with profile-based specialization across three v1 agent roles:
+  - `triage`
+  - `analysis`
+  - `chat`
+- **Template/workflow execution bound to agent profiles**, so profile policy controls which workflows can be selected or executed.
+- **Template/workflow IDs**: ticket-style IDs generated from names (for example `TPL-1001`), with name remaining the authoring source-of-truth.
+- **Template/workflow policy metadata**: frontmatter at the top of each template/workflow markdown defines tool permissions and runtime constraints.
+
+See `SPECS.md` for the full production-oriented architecture and contracts.
+
 ## Demo SPA (file-backed, static)
 
 This demo is intentionally frontend-only: every UI link points to a real file under `demo-data/`, and the SPA loads file contents directly from a **static local server**.
+
+The demo data and interaction patterns are the reference behavior for v1 UX and workflow shape (incident-first navigation, background tasks, and template-guided agent work), while production persistence and orchestration move to Supabase + S3 + containerized agent runtime.
+
+> Note on ORM: Supabase provides database + query clients and APIs, not a full ORM abstraction. V1 can begin with Supabase client/query patterns and add an ORM later only if needed.
 
 ### Run locally (static server only)
 
