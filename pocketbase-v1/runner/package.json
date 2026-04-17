@@ -1,0 +1,14 @@
+{
+  "name": "asoc-pocketbase-runner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "pocketbase": "^0.26.2",
+    "uuid": "^11.1.0"
+  }
+}

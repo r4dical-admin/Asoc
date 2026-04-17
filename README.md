@@ -1,9 +1,25 @@
 # Asoc
 Agentic harness for security operations
 
+## V1 Build Direction
+
+This repository now includes a locked v1 direction for turning the demo into an actual app:
+
+- **Frontend**: Svelte SPA as the primary client surface.
+- **Tenant architecture**: one PocketBase container per tenant (subdomain-routed later).
+- **Backend model**: PocketBase all-in-one per tenant (auth, collections, queue semantics, lifecycle, static SPA hosting).
+- **Execution model**: one or more Runner/Delegate containers connect to a tenant PocketBase and process queued tasks.
+- **Markdown storage**: incident sections, templates/workflows, and resources are stored as PocketBase file fields (not repo-local runtime files).
+- **Task streaming**: runners append lifecycle records and stream interaction events via PocketBase realtime/websocket channels.
+- **Minimum deployment**: two containers (PocketBase + one runner), with optional runner horizontal scaling and optional S3.
+
+See `pocketbase-v1/README.md` and `pocketbase-v1/SPECS.md` for the active production architecture and contracts.
+
 ## Demo SPA (file-backed, static)
 
 This demo is intentionally frontend-only: every UI link points to a real file under `demo-data/`, and the SPA loads file contents directly from a **static local server**.
+
+The demo data and interaction patterns are the reference behavior for v1 UX and workflow shape (incident-first navigation, background tasks, and template-guided agent work), while production persistence and orchestration move to PocketBase per tenant + runner containers.
 
 ### Run locally (static server only)
 
