@@ -1,0 +1,13 @@
+{
+  "name": "asoc-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node services/core-api/src/server.js",
+    "check": "node --check services/core-api/src/server.js && node --check apps/web/src/main.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

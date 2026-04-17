@@ -5,10 +5,13 @@
 For the first production build on branch `v1`, the following implementation choices are fixed:
 
 - **Frontend**: SPA web client.
+- **Frontend hosting**: Cloudflare Pages.
 - **Backend baseline**: Supabase-backed control plane (Auth + Postgres metadata + RLS) with API as enforcement point.
+- **Queue baseline**: Supabase/Postgres-native queue patterns first (for example `pgmq`-style), with optional broker split only after scale thresholds.
 - **Agent model**: one Pi-powered runtime image with role-specific **agent profiles**.
 - **Initial profiles**: `triage`, `analysis`, `chat`.
-- **Template binding**: templates are selected/executed through profile policy + workflow mapping.
+- **Agent runtime platform**: Google Cloud Run Jobs.
+- **Template binding**: templates are selected/executed through profile policy + workflow mapping; template/workflow markdown frontmatter is the v1 policy surface for tools, permissions, runtime controls, and profile compatibility.
 
 These decisions resolve the prior RFC uncertainty for v1 so implementation can proceed without architecture drift.
 
@@ -23,7 +26,7 @@ This document defines a high-level design and component specifications for evolv
 
 Non-goals (for this phase):
 
-- prescribing one cloud vendor,
+- prescribing one cloud vendor beyond the v1 implementation lock-ins above,
 - implementing detailed UI behavior beyond API/data contracts,
 - full infrastructure-as-code templates (covered in later delivery).
 
@@ -32,6 +35,8 @@ Non-goals (for this phase):
 ## 2) Product Context
 
 Asoc currently provides an incident workspace concept with incidents, background tasks, and knowledge resources. The target architecture turns this into a distributed control plane + data plane system supporting many organizations (tenants) safely and concurrently.
+
+The current static demo is aligned with this v1 target with only incremental UX additions beyond the latest spec branch: settings resources, periodic update/status-call incident documents, and a status-call launch action. Production should treat these as first-class resource catalog entries and incident document pointers rather than special file paths.
 
 ---
 
@@ -297,6 +302,10 @@ tenants/{tenant_id}/exports/{export_id}.zip
 - Per-tenant fair scheduling controls.
 - Message TTL and DLQ.
 
+**V1 Implementation Note**
+- Use a Supabase/Postgres-native queue first (for example `pgmq`-style semantics) to minimize moving parts.
+- Re-evaluate external broker adoption only if queue throughput, fanout, or operational isolation needs exceed Postgres-backed constraints.
+
 ## 7.7 Agent Runner Controller (Container)
 
 **Responsibilities**
@@ -361,6 +370,21 @@ tenants/{tenant_id}/exports/{export_id}.zip
 - Manage templates, skills, integrations docs, and references.
 - Version resource pointers to S3 objects.
 
+**V1 Template/Workflow Convention**
+- Authoring source remains markdown files by human-readable name.
+- System-assigned IDs are ticket-style and deterministic per normalized name family (for example `TPL-PHISHING-0042`) generated at ingestion time and persisted in metadata.
+- Templates/workflows can declare execution permissions via frontmatter, including tool allowlist, network constraints, timeout hints, output schema hints, and allowed profile roles.
+
+**Frontmatter contract (v1 minimum)**
+```yaml
+name: "Phishing mailbox triage"
+id_hint: "phishing"
+allowed_profile_roles: [analysis]
+tool_allowlist: ["email.search", "siem.query"]
+max_runtime_sec: 1800
+output_schema_version: "v1"
+```
+
 ## 7.12 Observability Stack
 
 **Responsibilities**
@@ -416,6 +440,8 @@ tenants/{tenant_id}/exports/{export_id}.zip
 ### 8.1 Recommended Orchestrator
 
 Use a **managed container service** that abstracts nodes and cluster operations (e.g., Azure Container Apps Jobs / AWS Fargate-based jobs / Cloud Run jobs). This aligns with the requirement to avoid Kubernetes/node management and manual capacity sizing.
+
+**V1 Selection**: Google Cloud Run Jobs.
 
 ### 8.1.1 BaaS Compatibility with Agent Containers
 
@@ -504,7 +530,7 @@ Request:
 - `incident_id`
 - `task_type`
 - `agent_profile_id`
-- `template_id` (or `workflow_id`, canonicalized by API contract)
+- `template_id` (ticket-style, for example `TPL-1042`, generated from template/workflow name at ingestion)
 - `input_refs[]` (object keys/IDs)
 - `priority`
 
@@ -551,7 +577,7 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 5. Triage service creates (or links to) an incident with minimal SQL metadata and S3-backed context objects.
 6. Triage service starts an analysis agent using:
    - analysis `agent_profile_id`,
-   - selected template ID/version,
+   - selected ticket-style template ID/version,
    - incident ID + tenant ID,
    - relevant alert artifacts and enrichment context.
 7. Analysis agent executes the template workflow and continuously writes progress updates/results to S3; incident pointers are updated for UI visibility.
@@ -668,12 +694,16 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 
 1. **BaaS/Auth/Metadata**: Supabase (Auth + Postgres/RLS) as the control-plane backend.
 2. **Frontend model**: SPA client consuming Core API/BFF endpoints.
-3. **Agent strategy**: one Pi runtime image with tenant-scoped role profiles (`triage`, `analysis`, `chat`).
-4. **Template execution model**: templates/workflows are selected by triage profile and executed by analysis profile with explicit profile + template IDs in task metadata.
+3. **Frontend hosting**: Cloudflare Pages.
+4. **Queue baseline**: Supabase/Postgres-native queue for v1.
+5. **Agent runtime platform**: Google Cloud Run Jobs.
+6. **ORM approach**: Supabase client/query API first; optional ORM layer later if needed.
+7. **Agent strategy**: one Pi runtime image with tenant-scoped role profiles (`triage`, `analysis`, `chat`).
+8. **Template execution model**: templates/workflows are selected by triage profile and executed by analysis profile with explicit profile + template IDs in task metadata.
+9. **Template/workflow permissions**: frontmatter in template/workflow markdown is the v1 policy declaration source, including allowed profile roles.
 
 ### Deferred to Post-v1 RFCs
 
-1. Cloud vendor-specific managed job mapping finalization.
-2. Long-term queue backend optimization choices at higher scale.
-3. Cross-tenant analytics warehouse strategy.
-4. Evidence immutability policy variants by regulation/severity tier.
+1. Cross-tenant analytics warehouse strategy.
+2. Evidence immutability policy variants by regulation/severity tier.
+3. Criteria/timing for introducing an external queue broker beyond Supabase/Postgres-native queue.
