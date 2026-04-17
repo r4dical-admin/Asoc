@@ -125,6 +125,60 @@ Environment:
 
 - `VITE_POCKETBASE_URL` (default: `http://127.0.0.1:8090`)
 
+### Single-container Podman quick start
+
+Use this when you want PocketBase and the compiled Svelte frontend without installing PocketBase locally:
+
+```bash
+cd /Users/ido/Documents/asoc/Asoc/pocketbase-v1
+./scripts/podman-run.sh
+```
+
+The helper builds `asoc-pocketbase-v1`, starts `asoc-pocketbase-v1`, and stores PocketBase data in the
+`asoc-pocketbase-v1-data` Podman volume.
+
+Open:
+
+- Frontend + PocketBase API: `http://127.0.0.1:8090`
+- PocketBase admin setup: `http://127.0.0.1:8090/_/`
+
+Manual equivalent:
+
+```bash
+cd /Users/ido/Documents/asoc/Asoc
+podman build -t asoc-pocketbase-v1 -f pocketbase-v1/Containerfile .
+podman volume create asoc-pocketbase-v1-data
+podman run --name asoc-pocketbase-v1 --replace -d -p 8090:8090 \
+  -v asoc-pocketbase-v1-data:/pb/pb_data:Z \
+  asoc-pocketbase-v1
+```
+
+The container serves the Svelte build from PocketBase's public directory and keeps mutable PocketBase state
+outside the image in the named volume. Override `HOST_PORT`, `IMAGE_NAME`, `CONTAINER_NAME`, or `VOLUME_NAME`
+when running the helper if you need a different local setup.
+
+### Seeded PocketBase data
+
+The image includes `pb_migrations/20260418000100_initial_asoc_seed.js`. On first boot of a fresh
+`pb_data` directory, PocketBase creates the baseline v1 collections from `SPECS.md` and imports the included
+demo markdown into PocketBase file fields:
+
+- `incidents` and `incident_sections` with `incident_sections.content_md_file`
+- one file-backed chat section per analyst/agent conversation, matching root `demo-data/manifest.json`
+- `tasks`, `task_lifecycle`, `runner_registrations`, and `task_stream_sessions`
+- `agent_profiles` and markdown-backed `templates`
+- right-pane `resources` with `resources.body_md_file`
+- `old_incidents` with archived case markdown
+
+To reset the local demo tenant and run the seed again:
+
+```bash
+podman rm -f asoc-pocketbase-v1
+podman volume rm asoc-pocketbase-v1-data
+cd /Users/ido/Documents/asoc/Asoc/pocketbase-v1
+./scripts/podman-run.sh
+```
+
 ### Runner quick start
 
 ```bash
