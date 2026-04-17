@@ -119,12 +119,32 @@
     return resourceLabels[category] ?? category;
   }
 
+  function incidentGroupKey(incident: IncidentRecord) {
+    return `inc:${incidentLabel(incident)}`;
+  }
+
+  function chatGroupKey(incident: IncidentRecord) {
+    return `${incidentGroupKey(incident)}:chat`;
+  }
+
+  function resourceGroupKey(category: string) {
+    return `res:${category}`;
+  }
+
   function groupIsCollapsed(key: string) {
     return collapsedGroups[key] ?? true;
   }
 
   function toggleGroup(key: string) {
     collapsedGroups = { ...collapsedGroups, [key]: !groupIsCollapsed(key) };
+  }
+
+  function isIncidentOpen(incident: IncidentRecord) {
+    return !groupIsCollapsed(incidentGroupKey(incident));
+  }
+
+  function isChatOpen(incident: IncidentRecord) {
+    return !groupIsCollapsed(chatGroupKey(incident));
   }
 
   function closeDate(value?: string) {
@@ -166,13 +186,13 @@
             <button
               class="group-title"
               type="button"
-              on:click={() => toggleGroup(`inc:${incidentLabel(incident)}`)}
-              aria-expanded={!groupIsCollapsed(`inc:${incidentLabel(incident)}`)}
+              on:click={() => toggleGroup(incidentGroupKey(incident))}
+              aria-expanded={isIncidentOpen(incident)}
             >
               <strong>{incidentLabel(incident)} — {incident.title ?? 'Untitled incident'}</strong>
               <em class={severityClass(incident.severity)}>{incident.severity ?? 'N/A'}</em>
             </button>
-            {#if !groupIsCollapsed(`inc:${incidentLabel(incident)}`)}
+            {#if isIncidentOpen(incident)}
               <div class="group-files" aria-label={`${incidentLabel(incident)} sections`}>
                 {#each sectionsForIncident(incident) as section}
                   <button
@@ -190,12 +210,12 @@
                     <button
                       class="group-title"
                       type="button"
-                      on:click={() => toggleGroup(`inc:${incidentLabel(incident)}:chat`)}
-                      aria-expanded={!groupIsCollapsed(`inc:${incidentLabel(incident)}:chat`)}
+                      on:click={() => toggleGroup(chatGroupKey(incident))}
+                      aria-expanded={isChatOpen(incident)}
                     >
                       Chat
                     </button>
-                    {#if !groupIsCollapsed(`inc:${incidentLabel(incident)}:chat`)}
+                    {#if isChatOpen(incident)}
                       <div class="group-files">
                         {#each chatsForIncident(incident) as chat}
                           <button
@@ -379,13 +399,13 @@
             <button
               class="group-title"
               type="button"
-              on:click={() => toggleGroup(`res:${category}`)}
-              aria-expanded={!groupIsCollapsed(`res:${category}`)}
+              on:click={() => toggleGroup(resourceGroupKey(category))}
+              aria-expanded={!groupIsCollapsed(resourceGroupKey(category))}
             >
               <strong>{resourceGroupLabel(category)}</strong>
               <em>{items.length}</em>
             </button>
-            {#if !groupIsCollapsed(`res:${category}`)}
+            {#if !groupIsCollapsed(resourceGroupKey(category))}
               <div class="group-files">
                 {#each items as resource}
                   <button
