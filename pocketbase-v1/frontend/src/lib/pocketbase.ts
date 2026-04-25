@@ -28,6 +28,7 @@ export type TaskRecord = RecordModel & {
   priority?: number;
   profile_id?: string;
   claimed_by_runner_id?: string;
+  context_refs_json?: Record<string, unknown>;
 };
 
 export type ResourceRecord = RecordModel & {
@@ -79,4 +80,25 @@ export async function loadMarkdownFromFile(record: RecordModel, fileField: strin
     throw new Error(`Failed markdown fetch for ${record.collectionName}/${record.id}`);
   }
   return response.text();
+}
+
+export async function saveMarkdownFile(
+  collectionName: string,
+  recordId: string,
+  fileField: string,
+  markdown: string,
+  fileName: string
+) {
+  return pb.collection(collectionName).update(recordId, {
+    [fileField]: new File([markdown], fileName, { type: 'text/markdown;charset=utf-8' })
+  });
+}
+
+export async function saveTaskMarkdown(taskId: string, contextRefsJson: Record<string, unknown>, markdown: string) {
+  return pb.collection('tasks').update(taskId, {
+    context_refs_json: {
+      ...contextRefsJson,
+      body_md: markdown
+    }
+  });
 }
