@@ -54,6 +54,7 @@ The current v1 collections are enough to prototype the loop, but the runner beha
 Existing core fields remain:
 
 - `status`: `queued|claimed|preparing|starting|running|finalizing|succeeded|failed|canceled|timed_out`
+- `role_type`: `triage|analysis|chat|custom`
 - `claimed_by_runner_id`
 - `priority`
 - `profile_id`
@@ -62,6 +63,7 @@ Existing core fields remain:
 
 Recommended additions:
 
+- `task_kind`: `background|live_chat`
 - `attempt_no`
 - `max_attempts`
 - `next_eligible_at`
@@ -72,6 +74,14 @@ Recommended additions:
 - `cancel_requested_at`
 - `result_summary_json`
 - `error_code`
+
+Live chat tasks should also support:
+
+- `conversation_scope`: `incident|global`
+- `conversation_title`
+- `session_owner_user_id`
+- `last_user_message_at`
+- `last_agent_message_at`
 
 ### 3.2 `task_lifecycle`
 
@@ -129,6 +139,8 @@ Recommended fields:
 - `opened_at`
 - `closed_at`
 - `last_event_at`
+- `backend_socket_status`: `connecting|open|closing|closed|error`
+- `ui_presence_count`
 
 ---
 
@@ -141,6 +153,8 @@ The runner should maintain three cooperating loops:
 1. `registration loop`
 2. `scheduler loop`
 3. `supervision loop`
+
+Live chat uses the same loops as background work. The difference is that chat tasks remain open for interactive back-and-forth until the user ends the session, the session times out, or policy closes it.
 
 ### 4.2 Registration Loop
 
@@ -240,6 +254,12 @@ The output of this phase is an execution bundle that includes:
   - network policy,
   - artifact output paths
 
+For `role_type = chat`, the runner must additionally resolve conversation context:
+
+- if `conversation_scope = incident`, load the incident and relevant incident sections,
+- if `conversation_scope = global`, load only tenant-global resources and any explicitly referenced context,
+- if the task was started ad hoc, synthesize a chat-oriented task prompt even when no workflow template launched it.
+
 If preparation fails, the runner should move directly to `failed` or `retry.scheduled` depending on policy.
 
 ### 5.3 Start Phase
@@ -256,6 +276,8 @@ During `starting`, the runner:
 4. appends `delegate.starting`,
 5. switches the task to `running` only after container startup succeeds.
 
+For live chat tasks, the runner must also open a websocket connection back to the backend before the session is considered fully ready for UI interaction.
+
 ### 5.4 Running Phase
 
 While `running`, the runner:
@@ -269,6 +291,13 @@ While `running`, the runner:
 - monitors wall-clock timeout and idle timeout if configured.
 
 The runner should be able to survive noisy delegates by batching or rate-limiting lifecycle writes while still preserving order.
+
+For live chat tasks, `running` is an interactive session state rather than a short compute phase. The runner should keep the task open while:
+
+- the delegate container is healthy,
+- the backend websocket is healthy or reconnecting within policy,
+- the session has not been explicitly ended,
+- idle timeout has not been exceeded.
 
 ### 5.5 Finalize Phase
 
@@ -305,6 +334,13 @@ The delegate container is intentionally simple. It should:
 - exit once the attempt is complete.
 
 The delegate should not claim tasks directly and should not write task state back to PocketBase on its own. The runner remains the single writer for task state transitions.
+
+For live chat, the delegate should also support a long-lived conversational loop:
+
+- receive user messages forwarded by the runner,
+- emit partial and final assistant messages,
+- request tools or context through the normal runner-controlled policy boundary,
+- remain alive across multiple turns until the session closes.
 
 ### 6.2 Delegate Inputs
 
@@ -374,6 +410,12 @@ Recovery rules:
 - if a task is `claimed|preparing|starting|running` and `lease_expires_at` is in the past, it is eligible for abandonment handling,
 - abandonment should append `abandoned`,
 - policy decides whether to set the task back to `queued` or to `failed`.
+
+For abandoned live chat tasks, the default recovery should be:
+
+- mark the old session as `abandoned`,
+- close any stale stream session,
+- optionally allow the UI to reopen the conversation by creating a new live chat task rather than resuming an orphaned container.
 
 ---
 
@@ -450,9 +492,135 @@ Assembly rules:
 
 This keeps delegate images generic and allows prompt assembly logic to evolve centrally in the runner.
 
+### 10.1 Live Chat Prompt Shape
+
+Live chat should still be task-backed, but the prompt bundle should be conversation-oriented.
+
+Recommended inputs:
+
+- `chat session header`
+- `scope summary`
+- `incident summary` when incident-scoped
+- `relevant incident sections` when incident-scoped
+- `tenant-global resources` when global-scoped
+- `conversation transcript so far`
+- `latest user message`
+- `tool/runtime policy`
+
+Recommended chat creation flows:
+
+1. incident chat:
+   - create `tasks` row with `role_type = chat`
+   - set `task_kind = live_chat`
+   - set `conversation_scope = incident`
+   - point `incident_id` at the active incident
+2. ad-hoc global chat:
+   - create `tasks` row with `role_type = chat`
+   - set `task_kind = live_chat`
+   - set `conversation_scope = global`
+   - leave `incident_id` null
+
+This preserves one execution model for both background agents and chat sessions.
+
 ---
 
-## 11) Pseudocode
+## 11) Live Chat Transport Contract
+
+### 11.1 Why It Is Still a Task
+
+A live chat session should be created as a task because that gives us:
+
+- the same claim/run/finalize machinery,
+- the same lifecycle audit trail,
+- the same profile/template enforcement,
+- the same transcript and artifact model,
+- a single UI primitive for background work and interactive work.
+
+The main difference is lifetime and interactivity, not orchestration shape.
+
+### 11.2 Websocket Direction
+
+Once a live chat task reaches `running`, the runner should open a websocket connection back to the backend.
+
+Recommended connection model:
+
+- runner is websocket client,
+- backend is websocket server,
+- UI connects to backend, not directly to the runner,
+- backend fans events between UI subscribers and the runner.
+
+This keeps runner networking private and lets the backend remain the single gateway for browsers.
+
+### 11.3 Message Flow
+
+Recommended flow:
+
+1. UI requests a new live chat session.
+2. Backend creates a `tasks` row.
+3. Runner claims and prepares the chat task.
+4. Runner starts the delegate container.
+5. Runner opens websocket to backend for that `task_stream_session`.
+6. Backend marks the stream session reachable for UI subscribers.
+7. UI sends user message to backend.
+8. Backend persists the message as `stdin_event` and forwards it on the websocket.
+9. Runner receives the message and sends it into the delegate.
+10. Delegate emits tokens/chunks/messages.
+11. Runner forwards them over the websocket and appends ordered lifecycle rows.
+12. Backend broadcasts them to subscribed UI clients.
+
+### 11.4 Session Event Types
+
+Recommended websocket event envelope:
+
+- `session.ready`
+- `session.heartbeat`
+- `message.user`
+- `message.assistant.delta`
+- `message.assistant.completed`
+- `message.tool_call`
+- `message.tool_result`
+- `message.error`
+- `session.closing`
+- `session.closed`
+
+Each websocket event should also be representable in durable form through `task_lifecycle` so the transcript can be reconstructed if clients disconnect.
+
+### 11.5 Backend Responsibilities
+
+The backend side of the websocket bridge should:
+
+- authenticate runner connections,
+- authorize session-to-task binding,
+- multiplex multiple UI subscribers to one running task,
+- persist inbound user messages,
+- optionally buffer recent outbound messages for reconnects,
+- expose session status to the UI.
+
+### 11.6 Runner Responsibilities for Chat Sessions
+
+For live chat sessions, the runner must:
+
+- open the websocket after delegate startup,
+- keep it alive with heartbeats,
+- reconnect within a short grace window on transient failure,
+- stop accepting new chat turns if the backend channel is unavailable beyond policy,
+- close the delegate cleanly when the session ends.
+
+### 11.7 Session End Conditions
+
+A live chat task should end when any of the following happens:
+
+- user explicitly closes the chat,
+- backend requests session termination,
+- delegate exits normally and no further interaction is expected,
+- idle timeout is exceeded,
+- max runtime is exceeded,
+- repeated websocket reconnect attempts fail,
+- runner shutdown policy drains the session.
+
+---
+
+## 12) Pseudocode
 
 ```text
 runner.start():
@@ -499,10 +667,14 @@ prepare_attempt():
 start_delegate():
   create stream session
   container_id = runtime.start_container(bundle)
+  if task_kind == live_chat:
+    backend_ws = open_backend_websocket(task_stream_session)
   transition task to running
 
 supervise_running():
   forward stdout/stderr/stdin
+  if task_kind == live_chat:
+    forward websocket messages in both directions
   renew lease
   emit heartbeat
   if cancel requested: stop delegate
@@ -519,7 +691,7 @@ finalize_attempt():
 
 ---
 
-## 12) v1 Implementation Guidance
+## 13) v1 Implementation Guidance
 
 To evolve the current prototype runner toward this model, the implementation sequence should be:
 
@@ -527,10 +699,11 @@ To evolve the current prototype runner toward this model, the implementation seq
 2. add lease and heartbeat handling,
 3. separate scheduler logic from execution supervision,
 4. add prompt/context bundle assembly from template and profile records,
-5. replace in-process fake execution with per-task delegate container launch,
-6. add stream session open/close behavior,
-7. add timeout, cancellation, and retry paths,
-8. add stale-attempt recovery on startup.
+5. add live chat task creation semantics with `incident` and `global` scope,
+6. replace in-process fake execution with per-task delegate container launch,
+7. add backend websocket open/close behavior for live chat sessions,
+8. add timeout, cancellation, and retry paths,
+9. add stale-attempt recovery on startup.
 
 If we keep one principle fixed, it should be this:
 
