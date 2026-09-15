@@ -126,7 +126,7 @@ Open:
 - Frontend + PocketBase API: `http://127.0.0.1:8090`
 - PocketBase admin setup: `http://127.0.0.1:8090/_/`
 
-The application is invite-only. Sign in initially with `admin` / `password` and replace the password when prompted. Set `ASOC_RUNNER_PASSWORD` in the untracked `runner/.env`; PocketBase uses it once to bootstrap the runner service account. Collection rules require authenticated users or the service account, and roles limit mutations.
+The application is invite-only. Sign in initially with `admin` / `password` and replace the password when prompted. The startup script creates `runner/.env` when needed, generates a strong runner password, stores the file with mode `0600`, and starts the first runner. Collection rules require authenticated users or the service account, and roles limit mutations.
 
 Runner model defaults live in the runner's untracked `.env` file. Copy `runner/.env.example` to `runner/.env`,
 set `AI_PROVIDER=gemini`, keep `GEMINI_API_KEY` only in that local file, and set `AI_MODEL` to the default Gemini
@@ -162,37 +162,28 @@ Environment:
 
 - `VITE_POCKETBASE_URL` (default: `http://127.0.0.1:8090`)
 
-### Single-container Podman quick start
+### Local Podman quick start
 
-Use this when you want PocketBase and the compiled Svelte frontend without installing PocketBase locally:
+Use this to start PocketBase, the compiled Svelte frontend, and the first runner without installing PocketBase locally:
 
 ```bash
 cd /Users/ido/Documents/asoc/Asoc/pocketbase-v1
 ./scripts/podman-run.sh
 ```
 
-The helper builds `asoc-pocketbase-v1`, starts `asoc-pocketbase-v1`, and stores PocketBase data in the
-`asoc-pocketbase-v1-data` Podman volume.
+The helper builds and starts `asoc-pocketbase-v1` and `asoc-runner-v1`, and stores PocketBase data in the
+`asoc-pocketbase-v1-data` Podman volume. If `runner/.env` does not contain `ASOC_RUNNER_PASSWORD`, the helper
+generates one and saves it without printing the credential. Existing AI provider settings and API keys in that
+file are preserved.
 
 Open:
 
 - Frontend + PocketBase API: `http://127.0.0.1:8090`
 - PocketBase admin setup: `http://127.0.0.1:8090/_/`
 
-Manual equivalent:
-
-```bash
-cd /Users/ido/Documents/asoc/Asoc
-podman build -t asoc-pocketbase-v1 -f pocketbase-v1/Containerfile .
-podman volume create asoc-pocketbase-v1-data
-podman run --name asoc-pocketbase-v1 --replace -d -p 8090:8090 \
-  -v asoc-pocketbase-v1-data:/pb/pb_data:Z \
-  asoc-pocketbase-v1
-```
-
-The container serves the Svelte build from PocketBase's public directory and keeps mutable PocketBase state
-outside the image in the named volume. Override `HOST_PORT`, `IMAGE_NAME`, `CONTAINER_NAME`, or `VOLUME_NAME`
-when running the helper if you need a different local setup.
+The PocketBase container serves the Svelte build and keeps mutable state outside the image in the named volume.
+Override `HOST_PORT`, `ASOC_INTAKE_PORT`, `IMAGE_NAME`, `CONTAINER_NAME`, `VOLUME_NAME`, `RUNNER_IMAGE_NAME`,
+`RUNNER_CONTAINER_NAME`, or `NETWORK_NAME` when running the helper if you need a different local setup.
 
 ### Seeded PocketBase data
 

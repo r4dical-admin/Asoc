@@ -22,6 +22,8 @@ cp pocketbase-v1/runner/.env.example pocketbase-v1/runner/.env
 ```
 
 Then edit `pocketbase-v1/runner/.env` locally and add provider-specific values such as `AI_PROVIDER`, `AI_BASE_URL`, `AI_MODEL`, and `AI_API_KEY`.
+`pocketbase-v1/scripts/podman-run.sh` creates this file from the example when it is absent, generates and persists
+the initial runner password with mode `0600`, and launches both PocketBase and the first runner.
 For Gemini, use:
 
 ```bash

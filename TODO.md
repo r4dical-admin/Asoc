@@ -85,6 +85,7 @@ Source roadmap: `pocketbase-v1/RUNNER_LOOP.md`.
 
 ## V0.1 — Runner Enrollment
 
+- [x] Start the first local runner during initial spin-up and generate a persisted random bootstrap password when needed.
 - [ ] Replace the shared `ASOC_RUNNER_PASSWORD` bootstrap with admin-created, expiring, single-use runner enrollment tokens stored only as hashes.
 - [ ] Add admin APIs and UI to create, list, and revoke enrollment tokens; reveal a new token only once.
 - [ ] Have each runner generate a strong local credential, enroll with its token, and persist the credential in a mode-`0600` file or deployment secret.
