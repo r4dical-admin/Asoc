@@ -90,7 +90,15 @@ export async function login(identity:string,password:string){ return pb.collecti
 export async function listOAuthProviders(){ return (await pb.collection('users').listAuthMethods()).oauth2?.providers ?? []; }
 export async function loginWithOAuth(provider:string){ return pb.collection('users').authWithOAuth2({provider}); }
 export function logout(){ pb.authStore.clear(); }
-export async function changePassword(old_password:string,password:string){ const r=await pb.send('/api/asoc/password',{method:'POST',body:{old_password,password}}); await pb.collection('users').authRefresh(); return r; }
+export async function changePassword(old_password:string,password:string){
+  const identity=pb.authStore.record?.email||pb.authStore.record?.username;
+  if(!identity)throw new Error('The current account has no login identity.');
+  await pb.send('/api/asoc/password',{method:'POST',body:{old_password,password}});
+  // Saving a PocketBase password rotates the record token key, so the old token
+  // cannot be refreshed. Establish a new session with the password just saved.
+  pb.authStore.clear();
+  return pb.collection('users').authWithPassword(identity,password);
+}
 export async function acceptInvitation(token:string,password:string){ return pb.collection('users').confirmPasswordReset(token,password,password); }
 export async function listUsers(){ return pb.collection('users').getFullList<UserRecord>({sort:'email'}); }
 export async function inviteUser(email:string,role:string){ return pb.send('/api/asoc/invite',{method:'POST',body:{email,role}}); }
