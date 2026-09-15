@@ -1,10 +1,29 @@
 # Asoc
 
-Asoc is an agent-assisted workspace for security operations. It brings incidents, incoming signals, investigation context, response playbooks, and background agent work into one place so analysts can move from detection to a documented decision without losing context between tools.
+Asoc is an experimental, agentic operations workspace originally built for security operations. It brings incidents, incoming signals, investigation context, response playbooks, and autonomous background work into one place so a team can move from detection to a documented decision without losing context between tools. The same model can support application security operations, including vulnerability triage, pull-request review, remediation tracking, and coordinated response across engineering systems.
 
-The workspace is designed for security teams that want automation to help with triage and analysis while keeping people in control of consequential actions.
+Asoc is built around AI agents as operational workers. People define intent, context, permissions, and approval boundaries; agents perform durable tasks, use reusable skills, invoke connected tools, and leave an auditable record of what they did. Analysts remain in control of consequential actions.
+
+> **Experimental software:** Asoc has not been fully tested or validated for production use. It is provided as is, without warranties. Operators and users are fully responsible for evaluating it, securing it, configuring its permissions, reviewing agent actions, and accepting the results and consequences of its use. To the fullest extent permitted by law, the project authors and contributors accept no liability. The binding terms are in [LICENSE.md](LICENSE.md).
 
 ![Asoc incident workspace](docs/images/asoc-incident-workspace.png)
+
+## Agentic by design
+
+Asoc treats operational procedures as material an agent can understand and execute, rather than hard-coding every workflow into application logic:
+
+- **Playbooks are Markdown.** A playbook describes the objective, instructions, required context, expected outputs, model settings, time limits, and tool policy in a format people can read, review, version, and improve.
+- **Triage is a playbook.** Each intake is assigned Markdown guidance that tells an agent how to investigate possible duplicates, correlate evidence, and choose whether to update an existing incident, open a new incident with a response playbook, or ignore the signal with a recorded reason.
+- **Tasks are work for AI agents.** A task packages the playbook, context, model choice, permissions, lifecycle state, transcript, and artifacts into a durable unit that a runner can claim and execute. Agents should use focused, reusable skills whenever a skill captures the required method or domain knowledge.
+- **Skills encode reusable expertise.** Investigation techniques, review methods, reporting formats, and other repeatable capabilities can be maintained independently and composed into many tasks instead of being rewritten into every prompt.
+- **Integrations use MCP.** External systems expose their capabilities as MCP tools. A playbook selects the tools an agent can see and marks each one as denied, allowed, or subject to human approval. Inbound webhooks and schedules remain intake transports; actions against systems such as Jira, GitHub, or collaboration platforms go through MCP.
+- **Context is assembled for each job.** Incidents, notes, timelines, prior decisions, knowledge, and selected resources are attached to the task so the agent works from explicit evidence rather than relying on hidden conversational state.
+- **Autonomy has boundaries.** Agent profiles place an upper limit on capabilities, playbooks narrow that limit for a specific job, and exact tool arguments can pause for analyst or administrator approval.
+- **Work is durable and auditable.** Tasks survive browser sessions and runner interruptions. The workspace retains lifecycle events, model output, tool requests, approvals, results, artifacts, and final decisions.
+- **Triage combines judgment with idempotency.** Transport-level deduplication prevents repeated deliveries, while the triage agent uses playbook-defined evidence to decide whether separate signals belong to the same incident. Final triage actions are recorded and protected from repeated side effects.
+- **Models and runners are replaceable.** Runners claim work independently, and the execution contract supports Gemini, OpenAI-compatible providers, and Ollama without binding playbooks to one model vendor.
+
+This structure makes Asoc a control plane for agent work: intakes create tasks, playbooks supply intent, skills supply methods, context supplies evidence, MCP supplies capabilities, and policies define the limits.
 
 ## What Asoc helps you do
 
@@ -44,7 +63,7 @@ A task is a durable unit of agent work. It records the selected playbook, model,
 
 ### Playbooks and tools
 
-Playbooks define the job, required context, expected outputs, model settings, timeout, and available MCP tools. Each tool receives one of three policies:
+Playbooks are stored as Markdown and define the job, required context, expected outputs, model settings, timeout, and available MCP tools. Each tool receives one of three policies:
 
 | Policy | Behavior |
 | --- | --- |
@@ -56,7 +75,7 @@ Playbooks define the job, required context, expected outputs, model settings, ti
 
 ### Resources
 
-Resources provide the operational memory around an incident: response playbooks, knowledge articles, historic RCAs, skills, data-source notes, and MCP integration definitions. Analysts can open them beside live incident material and agent output.
+Resources provide the operational memory around an incident: response playbooks, knowledge articles, historic RCAs, skills, data-source notes, and MCP integration definitions. Analysts can open them beside live incident material and agent output. Agents receive only the resources selected for their task context.
 
 ## Typical workflows
 
@@ -104,6 +123,8 @@ The current v0.1 implementation includes the PocketBase-backed workspace, durabl
 
 Some integrations still require deployment credentials and end-to-end acceptance. The current checklist is maintained in [TODO.md](TODO.md).
 
+This is an early experimental build, not a finished or fully tested security product. Do not assume that an agent decision, model response, integration action, access-control setting, or generated artifact is correct or safe without independent review appropriate to your environment.
+
 ## Try it locally
 
 The application starts with an invite-only local account. The initial login is `admin` / `password` and requires an immediate password change.
@@ -120,6 +141,10 @@ The earlier static workspace concept remains available at `interface-example.htm
 - [Deployment guide](pocketbase-v1/DEPLOYMENT.md) — container and tenant deployment notes.
 - [Roadmap and release acceptance](TODO.md) — implementation status and remaining end-to-end checks.
 
-## License
+## License, responsibility, and contributions
 
-Asoc is source-available under the PolyForm Internal Use License 1.0.0. Organizations may use and modify it for their own internal operations. See [LICENSE.md](LICENSE.md) for the binding terms and [LICENSE-CLARIFICATION.md](LICENSE-CLARIFICATION.md) for a plain-language summary.
+Asoc is free for internal use under the PolyForm Internal Use License 1.0.0. Organizations may use and modify it for their own internal operations. Offering it to third parties, redistributing it, or using it as part of a managed service requires separate permission under the license. See [LICENSE.md](LICENSE.md) for the binding terms and [LICENSE-CLARIFICATION.md](LICENSE-CLARIFICATION.md) for a plain-language summary.
+
+Asoc is provided as is and without warranty. Operators and users assume full responsibility for deployment, security, access, data handling, agent permissions, approvals, outputs, and any action taken through or based on the software. The authors and contributors accept no liability to the fullest extent permitted by law.
+
+Thoughts, issue reports, design feedback, documentation improvements, and code contributions are welcome. The project is still exploring how agentic workflows should fit real security and application security operations, and practical experience can help shape that direction.
