@@ -1,0 +1,6 @@
+.git
+pocketbase-v1/frontend/node_modules
+pocketbase-v1/frontend/dist
+pocketbase-v1/runner/node_modules
+pocketbase-v1/ui-example
+node_modules

@@ -1,0 +1,53 @@
+services:
+  pocketbase:
+    build:
+      context: ..
+      dockerfile: pocketbase-v1/Containerfile
+    container_name: asoc-pocketbase-v01
+    ports:
+      - "${ASOC_PB_PORT:-8090}:8090"
+    volumes:
+      - asoc-pocketbase-v01-data:/pb/pb_data
+    environment:
+      ASOC_ADMIN_EMAIL: "${ASOC_ADMIN_EMAIL:-admin@asoc.local}"
+      ASOC_ADMIN_PASSWORD: "${ASOC_ADMIN_PASSWORD:-password}"
+      ASOC_RUNNER_PASSWORD: "${ASOC_RUNNER_PASSWORD:?Set ASOC_RUNNER_PASSWORD}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  runner:
+    build:
+      context: ..
+      dockerfile: pocketbase-v1/runner/Containerfile
+    container_name: asoc-runner-v01
+    environment:
+      POCKETBASE_URL: http://pocketbase:8090
+      RUNNER_NAME: runner-compose
+      RUNNER_POLL_MS: "1500"
+      RUNNER_HEARTBEAT_MS: "5000"
+      RUNNER_MAX_PARALLEL_TASKS: "1"
+      AI_PROVIDER: "${AI_PROVIDER:-mock}"
+      AI_BASE_URL: "${AI_BASE_URL:-}"
+      GEMINI_BASE_URL: "${GEMINI_BASE_URL:-}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-}"
+      AI_MODEL: "${AI_MODEL:-}"
+      AI_REQUEST_TIMEOUT_MS: "${AI_REQUEST_TIMEOUT_MS:-120000}"
+      AI_API_KEY: "${AI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+      ASOC_RUNNER_PASSWORD: "${ASOC_RUNNER_PASSWORD:?Set ASOC_RUNNER_PASSWORD}"
+      DELEGATE_LAUNCH_MODE: "${DELEGATE_LAUNCH_MODE:-ai}"
+      INTAKE_PORT: "8081"
+    ports:
+      - "${ASOC_INTAKE_PORT:-8081}:8081"
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+
+volumes:
+  asoc-pocketbase-v01-data:

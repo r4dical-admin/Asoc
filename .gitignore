@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+!**/.env.example
+.env.local
+*.pem
+*.p12
+*.key
+secrets/
+pb_data/
+pocketbase-v1/runner/workspace/

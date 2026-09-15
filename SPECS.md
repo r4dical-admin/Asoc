@@ -1,16 +1,15 @@
 # Asoc Platform Specs (Multi-Tenant, S3-Backed, Containerized)
 
-## V1 Direction (Locked for Initial Build)
+## Current Implementation Direction
 
-For the first production build on branch `v1`, the following implementation choices are fixed:
+The [PocketBase V1 spec](pocketbase-v1/SPECS.md) is the source of truth for implementation. The broader architecture below is a reference for future capabilities, not a V1 delivery commitment. Where it differs, the PocketBase V1 spec takes precedence.
 
-- **Frontend**: SPA web client.
-- **Backend baseline**: Supabase-backed control plane (Auth + Postgres metadata + RLS) with API as enforcement point.
-- **Agent model**: one Pi-powered runtime image with role-specific **agent profiles**.
-- **Initial profiles**: `triage`, `analysis`, `chat`.
-- **Template binding**: templates are selected/executed through profile policy + workflow mapping.
-
-These decisions resolve the prior RFC uncertainty for v1 so implementation can proceed without architecture drift.
+- **Backend**: one PocketBase instance per tenant for auth, data, task queue collections, and static Svelte SPA hosting.
+- **Execution**: separate Runner/Delegate containers.
+- **Storage**: PocketBase-native by default; S3 optional.
+- **V1 authentication**: invite-only local email/password users; public self-registration disabled.
+- **V2 authentication**: OIDC (including Okta), Google, and GitHub sign-in.
+- **Integrations**: opened/updated GitHub PR intake for selected repositories; Jira Cloud intake and ticket creation. GitHub output wiring through skills/MCP settings is deferred.
 
 ## 1) Scope and Goals
 
@@ -23,7 +22,7 @@ This document defines a high-level design and component specifications for evolv
 
 Non-goals (for this phase):
 
-- prescribing one cloud vendor,
+- prescribing one cloud vendor beyond the v1 implementation lock-ins above,
 - implementing detailed UI behavior beyond API/data contracts,
 - full infrastructure-as-code templates (covered in later delivery).
 
@@ -100,7 +99,8 @@ Observability sidecar/agent on every service -> logs/metrics/traces backend
 
 ### 5.2 Identity and Access
 
-- Support enterprise SSO (OIDC/SAML via IdP).
+- V1 uses invite-only local PocketBase email/password accounts.
+- OIDC (including Okta), Google, and GitHub sign-in are deferred to V2.
 - JWT/session token must include:
   - `tenant_id`,
   - `subject/user_id`,
@@ -229,33 +229,17 @@ tenants/{tenant_id}/exports/{export_id}.zip
   - **Preferred**: API issues tenant-scoped presigned URLs and clients/agents transfer directly with S3.
   - **Fallback**: API streaming proxy for constrained clients or policy-enforced inspection paths.
 
-## 7.3 AuthN/AuthZ Service (3rd-Party Provider)
+## 7.3 Authentication and Authorization (PocketBase)
 
-**Responsibilities**
-- Integrate with a 3rd-party auth/user-management provider (e.g., Auth0, Okta, Cognito, Clerk).
-- Validate external IdP tokens.
-- Map external users/groups to tenant memberships and platform roles.
-- Issue internal short-lived service tokens when needed.
+**V1 requirements**
+- Use local PocketBase email/password accounts with invite-only access.
+- Disable public self-registration.
+- Enforce role-based and resource-aware access through PocketBase collection rules and backend hooks.
+- Keep users and access policies isolated within each tenant's PocketBase instance.
 
-**Requirements**
-- Role-based + resource-aware policies.
-- SCIM or provider-native user/group sync for tenant provisioning.
-- JIT (just-in-time) user provisioning at first login.
-- Externalized MFA/password/reset/session policies (owned by provider).
-
-**Tech Choice Guidance (Firebase/Supabase)**
-- **Supabase can work** as a BaaS for early/mid-stage implementation if we use:
-  - Supabase Auth for user/session management,
-  - Postgres + RLS for tenant-aware metadata access patterns,
-  - Supabase Storage only for lightweight app assets (keep incident/task bulk artifacts in S3 to preserve the S3-first architecture).
-- **Firebase is less aligned** for this design because:
-  - Firestore document patterns are weaker for the SQL-style relational metadata model defined in this spec,
-  - tenant isolation for complex relational queries and audit joins is harder than Postgres/RLS patterns.
-- If choosing Supabase, prefer **hybrid mode**:
-  - Supabase for auth + SQL metadata + realtime streams,
-  - S3 as canonical artifact/object store,
-  - managed container jobs (ACS/Fargate/Cloud Run Jobs) for agent execution.
-- Keep the API as policy enforcement point (do not let clients bypass tenant policy checks even if using BaaS SDKs).
+**V2 scope**
+- Add generic OIDC (including Okta), Google, and GitHub sign-in.
+- External sign-in must respect tenant access restrictions; it does not imply open registration.
 
 ## 7.4 Incident Service
 
@@ -296,6 +280,10 @@ tenants/{tenant_id}/exports/{export_id}.zip
 - At-least-once delivery.
 - Per-tenant fair scheduling controls.
 - Message TTL and DLQ.
+
+**V1 Implementation Note**
+- Use PocketBase task queue collections first to minimize moving parts.
+- Re-evaluate external broker adoption only if queue throughput, fanout, or operational isolation needs exceed the capacity of the PocketBase task queue.
 
 ## 7.7 Agent Runner Controller (Container)
 
@@ -361,6 +349,22 @@ tenants/{tenant_id}/exports/{export_id}.zip
 - Manage templates, skills, integrations docs, and references.
 - Version resource pointers to S3 objects.
 
+**V1 Template/Workflow Convention**
+- Authoring source remains markdown files by human-readable name.
+- System-assigned IDs are ticket-style and deterministic per normalized name family (for example `TPL-PHISHING-0042`) generated at ingestion time and persisted in metadata.
+- Templates/workflows can declare execution permissions via frontmatter (tool allowlist, network constraints, timeout hints, output schema hints, allowed_profile_roles).
+
+**Frontmatter contract (v1 minimum)**
+```yaml
+name: "Phishing mailbox triage"
+id_hint: "phishing"            # optional stable family hint used in ID generation
+allowed_profile_roles: [analysis]
+tool_allowlist: ["email.search", "siem.query"]
+max_runtime_sec: 1800
+output_schema_version: "v1"
+```
+
+
 ## 7.12 Observability Stack
 
 **Responsibilities**
@@ -417,9 +421,11 @@ tenants/{tenant_id}/exports/{export_id}.zip
 
 Use a **managed container service** that abstracts nodes and cluster operations (e.g., Azure Container Apps Jobs / AWS Fargate-based jobs / Cloud Run jobs). This aligns with the requirement to avoid Kubernetes/node management and manual capacity sizing.
 
+**V1 Selection**: Google Cloud Run Jobs.
+
 ### 8.1.1 BaaS Compatibility with Agent Containers
 
-- BaaS platforms (Supabase/Firebase) are suitable for auth/data backend concerns, but **they are not the primary runtime for untrusted long-running agent containers**.
+- PocketBase is suitable for auth/data backend concerns, but **it is not the primary runtime for untrusted long-running agent containers**.
 - Agent execution should remain on a managed job runtime with:
   - per-run CPU/memory/timeouts,
   - workload identity and short-lived credentials,
@@ -504,7 +510,7 @@ Request:
 - `incident_id`
 - `task_type`
 - `agent_profile_id`
-- `template_id` (or `workflow_id`, canonicalized by API contract)
+- `template_id` (ticket-style, e.g., `TPL-1042`, generated from template/workflow name at ingestion)
 - `input_refs[]` (object keys/IDs)
 - `priority`
 
@@ -551,7 +557,7 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 5. Triage service creates (or links to) an incident with minimal SQL metadata and S3-backed context objects.
 6. Triage service starts an analysis agent using:
    - analysis `agent_profile_id`,
-   - selected template ID/version,
+   - selected ticket-style template ID/version,
    - incident ID + tenant ID,
    - relevant alert artifacts and enrichment context.
 7. Analysis agent executes the template workflow and continuously writes progress updates/results to S3; incident pointers are updated for UI visibility.
@@ -666,14 +672,10 @@ Each incident view uses metadata rows that map section -> latest object pointer,
 
 ### Resolved for v1
 
-1. **BaaS/Auth/Metadata**: Supabase (Auth + Postgres/RLS) as the control-plane backend.
-2. **Frontend model**: SPA client consuming Core API/BFF endpoints.
-3. **Agent strategy**: one Pi runtime image with tenant-scoped role profiles (`triage`, `analysis`, `chat`).
-4. **Template execution model**: templates/workflows are selected by triage profile and executed by analysis profile with explicit profile + template IDs in task metadata.
+See the [PocketBase V1 locked decisions](pocketbase-v1/SPECS.md#locked-decisions) and [todo list](TODO.md) for the current backend, hosting, runtime, authentication, and integration scope.
 
 ### Deferred to Post-v1 RFCs
 
-1. Cloud vendor-specific managed job mapping finalization.
-2. Long-term queue backend optimization choices at higher scale.
-3. Cross-tenant analytics warehouse strategy.
-4. Evidence immutability policy variants by regulation/severity tier.
+1. Cross-tenant analytics warehouse strategy.
+2. Evidence immutability policy variants by regulation/severity tier.
+3. Criteria/timing for introducing an external queue broker beyond PocketBase task queue collections.
