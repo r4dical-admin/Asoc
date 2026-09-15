@@ -1,7 +1,7 @@
 # Asoc PocketBase + Svelte Architecture (New Direction)
 
 This folder is the new source of truth for the platform direction.
-It replaces the prior Supabase-first planning with a **PocketBase-per-tenant model** and a **separate agent runner/delegate container**.
+It defines a **PocketBase-per-tenant model** and a **separate agent runner/delegate container**.
 
 ## 1) Core Model (What we are building)
 
@@ -14,6 +14,8 @@ It replaces the prior Supabase-first planning with a **PocketBase-per-tenant mod
   - task lifecycle tracking,
   - API surface for the SPA,
   - serving the compiled Svelte SPA static files.
+- V1 user access uses email invitations and local PocketBase email/password accounts; public self-registration is disabled. Bootstrap application credentials are `admin` / `password`, with a mandatory first-login password change. Roles are admin, analyst, and read-only.
+- OIDC (including Okta), Google, and GitHub sign-in are deferred to V2.
 - Agent execution is handled by one or more separate **Runner/Delegate containers**.
 
 A minimal deployment is only **two containers per tenant**:
@@ -108,10 +110,45 @@ This folder now includes executable scaffolding for the v1 model:
   - reads incidents/tasks/resources from PocketBase collections,
   - loads markdown from PocketBase **file fields** (for example `resources.body_md_file`),
   - renders markdown content in center tabs.
-- `pocketbase-v1/runner/` — Runner/Delegate prototype that:
-  - polls and claims queued tasks,
-  - writes lifecycle records,
-  - updates terminal task states in PocketBase.
+- `pocketbase-v1/runner/` — authenticated runner that atomically claims work, renews leases, executes concurrent mock, AI, or container delegates, streams lifecycle output, enforces MCP policy and approvals, and handles cancellation, timeouts, retries, and stale attempts.
+
+## 8) v0.1 local stack
+
+The fastest full local path runs the tenant PocketBase container and the runner container together:
+
+```bash
+cd /Users/ido/Documents/asoc/Asoc/pocketbase-v1
+./scripts/run-v01.sh
+```
+
+Open:
+
+- Frontend + PocketBase API: `http://127.0.0.1:8090`
+- PocketBase admin setup: `http://127.0.0.1:8090/_/`
+
+The application is invite-only. Sign in initially with `admin` / `password` and replace the password when prompted. Set `ASOC_RUNNER_PASSWORD` in the untracked `runner/.env`; PocketBase uses it once to bootstrap the runner service account. Collection rules require authenticated users or the service account, and roles limit mutations.
+
+Runner model defaults live in the runner's untracked `.env` file. Copy `runner/.env.example` to `runner/.env`,
+set `AI_PROVIDER=gemini`, keep `GEMINI_API_KEY` only in that local file, and set `AI_MODEL` to the default Gemini
+model. Individual task definitions can override the model with `context_refs_json.ai.model`. Playbooks/templates can
+override the model with top-level `ai_provider` and `ai_model` fields in their workflow definition files.
+
+The real delegate uses the OpenAI-compatible streaming chat and function-tool contract across all supported backends:
+
+- Gemini: `AI_PROVIDER=gemini`, `GEMINI_API_KEY=...`, and a Gemini model such as `gemini-3.6-flash`.
+- OpenAI: `AI_PROVIDER=openai`, `OPENAI_API_KEY=...`, and an OpenAI model.
+- Ollama: `AI_PROVIDER=ollama`, an installed model in `AI_MODEL`, and optionally `OLLAMA_BASE_URL`. Local runners default to `http://127.0.0.1:11434/v1`; a containerized runner normally needs `http://host.containers.internal:11434/v1`.
+- Other compatible services: `AI_PROVIDER=openai-compatible`, `AI_BASE_URL=...`, `AI_API_KEY=...`, and `AI_MODEL=...`.
+
+Provider URLs can be overridden with `GEMINI_BASE_URL`, `OPENAI_BASE_URL`, or `OLLAMA_BASE_URL`. Model responses stream into task lifecycle events and chat transcripts, and MCP function calls continue through the same playbook policy and approval path for every backend.
+
+Smoke-test a clean build, migration, auth, intake, chat, frontend, and runner policy path:
+
+```bash
+./scripts/smoke-test.sh
+```
+4. Type into `Send Input` while the task is running to append stdin events.
+5. Confirm the runner marks the task `succeeded` and the UI updates within a few seconds.
 
 ### Frontend quick start
 
@@ -170,13 +207,11 @@ demo markdown into PocketBase file fields:
 - right-pane `resources` with `resources.body_md_file`
 - `old_incidents` with archived case markdown
 
-To reset the local demo tenant and run the seed again:
+To reset the local tenant and run the no-active-task seed again:
 
 ```bash
-podman rm -f asoc-pocketbase-v1
-podman volume rm asoc-pocketbase-v1-data
-cd /Users/ido/Documents/asoc/Asoc/pocketbase-v1
-./scripts/podman-run.sh
+./scripts/reset-v01.sh --yes
+./scripts/run-v01.sh
 ```
 
 ### Runner quick start

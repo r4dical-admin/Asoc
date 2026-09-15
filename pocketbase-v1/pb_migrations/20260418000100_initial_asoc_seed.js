@@ -242,6 +242,11 @@ migrate((app) => {
     ["INC-1002", "Suspicious OAuth Token Abuse", "SEV1", "active", "noa"],
     ["INC-1003", "AI Agent Crawling Anomaly", "SEV3", "active", "rina"],
   ];
+  const incidentSectionMap = {
+    "INC-1001": ["overview", "timeline", "artifacts", "slack", "periodic-update", "status-call", "chat"],
+    "INC-1002": ["overview", "timeline", "artifacts", "slack", "periodic-update", "status-call", "chat"],
+    "INC-1003": ["overview", "timeline", "artifacts", "slack", "status-call", "chat"],
+  };
 
   for (const [external_id, title, severity, status, owner] of incidents) {
     createRecord("incidents", {
@@ -253,7 +258,7 @@ migrate((app) => {
       opened_at: "2026-04-17 09:00:00.000Z",
     });
 
-    for (const section of ["overview", "timeline", "artifacts", "slack", "chat"]) {
+    for (const section of incidentSectionMap[external_id]) {
       seedFileRecord(
         "incident_sections",
         {
@@ -293,7 +298,9 @@ migrate((app) => {
   const resources = [
     ["workflows", "README.md", "Workflow Catalog", "readme"],
     ["workflows", "auto-containment.yaml", "Auto Containment Workflow", "workflow"],
+    ["workflows", "incident-overview.md", "Incident Overview Workflow", "workflow"],
     ["workflows", "lateral-movement.yaml", "Lateral Movement Workflow", "workflow"],
+    ["workflows", "periodic-updates.md", "Periodic Updates Workflow", "workflow"],
     ["knowledge-base", "README.md", "Knowledge Base", "readme"],
     ["knowledge-base", "c2-patterns.md", "C2 Patterns", "knowledge"],
     ["knowledge-base", "oauth-abuse.md", "OAuth Abuse", "knowledge"],
@@ -304,6 +311,7 @@ migrate((app) => {
     ["historic-rcas-sev1s", "sev1-identity-outage.md", "SEV1 Identity Outage RCA", "rca"],
     ["skills", "README.md", "Skills Catalog", "readme"],
     ["skills", "credential-risk-scorer.md", "Credential Risk Scorer", "skill"],
+    ["skills", "github-pr-output.md", "GitHub PR Output", "skill"],
     ["skills", "ioc-enricher.md", "IOC Enricher", "skill"],
     ["data-sources", "README.md", "Data Sources", "readme"],
     ["data-sources", "edr.md", "EDR Data Source", "data-source"],
@@ -311,6 +319,10 @@ migrate((app) => {
     ["mcps-integrations", "README.md", "MCP Integrations", "readme"],
     ["mcps-integrations", "jira-ticket-creator.md", "Jira Ticket Creator", "integration"],
     ["mcps-integrations", "slack-bridge.md", "Slack Bridge", "integration"],
+    ["settings", "README.md", "Settings Catalog", "readme"],
+    ["settings", "agent-runtime.md", "Agent Runtime Settings", "settings"],
+    ["settings", "server-settings.md", "Server Settings", "settings"],
+    ["settings", "users.md", "User Settings", "settings"],
     ["intakes", "README.md", "Intake Catalog", "readme"],
     ["intakes", "automated-alert-queue.md", "Automated Alert Queue", "intake"],
     ["intakes", "cron-tasks.md", "Cron Tasks", "intake"],
@@ -362,6 +374,9 @@ migrate((app) => {
     ["TASK-311", "OAuth Memory Analysis Worker", "INC-1002", "analysis", "running", 8, "profile-analysis", "TPL-LATERAL-MOVEMENT", "oauth-memory-analysis.md"],
     ["TASK-427", "API Abuse IOC Enricher", "INC-1003", "analysis", "succeeded", 5, "profile-ioc", "TPL-LATERAL-MOVEMENT", "api-abuse-enrichment.md"],
   ];
+  const taskAiOverrides = {
+    "TASK-204": { provider: "gemini", model: "gemini-3.6-flash" },
+  };
 
   let sequence = 1;
   for (const [external_id, title, incident_id, role_type, status, priority, profile_id, template_id, taskFile] of tasks) {
@@ -377,6 +392,7 @@ migrate((app) => {
       context_refs_json: {
         markdown_file: `background-tasks/${taskFile}`,
         incident_id,
+        ...(taskAiOverrides[external_id] ? { ai: taskAiOverrides[external_id] } : {}),
       },
       created_by_user_id: "seed",
     });

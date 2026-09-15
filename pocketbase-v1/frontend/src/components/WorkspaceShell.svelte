@@ -57,10 +57,14 @@
   export let activeTab: WorkspaceTab | undefined = undefined;
   export let activeHtml = '';
   export let activeMarkdown = '';
+  export let secondaryTab: WorkspaceTab | undefined = undefined;
+  export let secondaryHtml = '';
   export let isEditing = false;
   export let draftMarkdown = '';
   export let saving = false;
   export let saveError = '';
+  export let taskActionError = '';
+  export let canWrite = true;
 
   type DispatchEvents = {
     openIncident: { incident: IncidentRecord; section: string };
@@ -70,9 +74,13 @@
     openAdHocChat: { chat: AdHocChatSession };
     createAdHocChat: void;
     createIncidentChat: { incident: IncidentRecord };
+    queueTask: { incident?: IncidentRecord };
+    sendTaskInput: { task: TaskRecord; message: string };
     sendChatMessage: { chatId: string; message: string };
     closeTab: { id: string };
     activateTab: { id: string };
+    reorderTab: { from: string; to: string };
+    compareTab: { id: string };
     startEdit: void;
     updateDraft: { markdown: string };
     cancelEdit: void;
@@ -89,6 +97,7 @@
     skills: 'Skills',
     'data-sources': 'Data Sources',
     'mcps-integrations': 'MCPs / Integrations',
+    settings: 'Settings',
     intakes: 'Intakes'
   };
   const workerNames = ['Maya', 'Dave', 'Noa', 'Mike', 'Rina', 'Eli', 'Lia', 'Tom', 'Yael', 'Jon'];
@@ -101,6 +110,7 @@
   let leftPanelCollapsed = false;
   let rightPanelCollapsed = false;
   let chatDraft = '';
+  let taskInputDraft = '';
   let resizeMode: 'left' | 'right' | null = null;
   $: filteredResources = resources.filter((resource) => {
     const haystack = `${resource.category ?? ''} ${resource.title ?? ''} ${resource.id}`.toLowerCase();
@@ -123,6 +133,9 @@
   $: if (activeTab?.kind !== 'chat') {
     chatDraft = '';
   }
+  $: if (activeTab?.kind !== 'task') {
+    taskInputDraft = '';
+  }
 
   function severityClass(severity?: string) {
     return severity ? `severity-${severity.toLowerCase()}` : 'severity-none';
@@ -141,6 +154,10 @@
     if (status === 'running' || status === 'claimed') return 'active';
     if (status === 'succeeded') return 'done';
     return 'queued';
+  }
+  function tabGroup(tab: WorkspaceTab) {
+    const match = tab.id.match(/^(?:incident|chat):([^:]+)/);
+    return match?.[1]?.startsWith('INC-') ? match[1] : tab.kind;
   }
 
   function sectionsForIncident(incident: IncidentRecord) {
@@ -242,6 +259,27 @@
     }
   }
 
+  function activeTaskRecord() {
+    if (!activeTab?.id.startsWith('task:')) return undefined;
+    const taskId = activeTab.id.slice('task:'.length);
+    return tasks.find((task) => (task.external_id ?? task.id) === taskId);
+  }
+
+  function submitTaskInput() {
+    const message = taskInputDraft.trim();
+    const task = activeTaskRecord();
+    if (!message || !task) return;
+    dispatch('sendTaskInput', { task, message });
+    taskInputDraft = '';
+  }
+
+  function sendTaskInputFromKeyboard(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      submitTaskInput();
+    }
+  }
+
   function beginResize(mode: 'left' | 'right') {
     if ((mode === 'left' && leftPanelCollapsed) || (mode === 'right' && rightPanelCollapsed)) return;
     resizeMode = mode;
@@ -304,6 +342,9 @@
       <div class="pane-heading">
         <h2>Active Incidents</h2>
         <div class="pane-tools">
+          {#if canWrite}<button type="button" class="tool-button" title="Queue a task" on:click={() => dispatch('queueTask', {})}>
+            Queue Task
+          </button>{/if}
           <button type="button" class="tool-button" title="Toggle left panel" on:click={() => (leftPanelCollapsed = !leftPanelCollapsed)}>
             {leftPanelCollapsed ? '>' : '<'}
           </button>
@@ -333,16 +374,24 @@
                 </button>
               {/each}
 
+              {#if canWrite}<button
+                type="button"
+                class="link action-link"
+                on:click={() => dispatch('queueTask', { incident })}
+              >
+                Queue analysis run
+              </button>{/if}
+
               <details class="nested-group">
                 <summary class="group-title nested-heading">
                   <span>Chat</span>
-                  <button
+                  {#if canWrite}<button
                     type="button"
                     class="tool-button inline-tool"
                     on:click|stopPropagation={() => dispatch('createIncidentChat', { incident })}
                   >
                     New
-                  </button>
+                  </button>{/if}
                 </summary>
                 <div class="group-files">
                   {#each chatsForIncident(incident) as chat}
@@ -379,9 +428,9 @@
       <div class="pane-heading task-heading">
         <h2>Chats</h2>
         <div class="pane-tools">
-          <button type="button" class="tool-button" title="Start new chat" on:click={() => dispatch('createAdHocChat')}>
+          {#if canWrite}<button type="button" class="tool-button" title="Start new chat" on:click={() => dispatch('createAdHocChat')}>
             New Chat
-          </button>
+          </button>{/if}
         </div>
       </div>
       <div class="resource-groups chat-groups">
@@ -483,15 +532,20 @@
       <div class="tabs" role="tablist" aria-label="Open tabs">
         {#each tabs as tab}
           <button
+            draggable="true"
             type="button"
             role="tab"
             class="tab"
             class:active={tab.id === activeTabId}
             aria-selected={tab.id === activeTabId}
             on:click={() => dispatch('activateTab', { id: tab.id })}
+            on:dragstart={(event) => event.dataTransfer?.setData('text/plain', tab.id)}
+            on:dragover|preventDefault
+            on:drop={(event) => dispatch('reorderTab', { from: event.dataTransfer?.getData('text/plain') ?? '', to: tab.id })}
           >
-            <span>{tab.title}</span>
-            <em>{tab.kind}</em>
+            <span>{tab.title}{isEditing && tab.id === activeTabId ? ' •' : ''}</span>
+            <em>{tabGroup(tab)}</em>
+            <span class="tab-close" role="button" tabindex="0" title="Compare" on:click|stopPropagation={() => dispatch('compareTab',{id:tab.id})} on:keydown={(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();dispatch('compareTab',{id:tab.id});}}}>⇄</span>
             <span
               class="tab-close"
               role="button"
@@ -533,7 +587,7 @@
             <button type="button" class:active={viewMode === 'raw'} on:click={() => (viewMode = 'raw')}>
               Raw
             </button>
-            {#if activeTab?.editable}
+            {#if activeTab?.editable && canWrite}
               <button type="button" class="action-button" on:click={() => dispatch('startEdit')}>Edit</button>
             {/if}
           {/if}
@@ -543,6 +597,9 @@
       <article class="viewer">
         {#if saveError}
           <p class="error inline-error">{saveError}</p>
+        {/if}
+        {#if taskActionError}
+          <p class="error inline-error">{taskActionError}</p>
         {/if}
         {#if activeTab}
           {#if activeTab.kind === 'chat' && activeTab.chatSession}
@@ -558,7 +615,7 @@
                   </section>
                 {/each}
               </div>
-              <div class="chat-composer">
+              {#if canWrite}<div class="chat-composer">
                 <textarea
                   class="chat-input"
                   value={chatDraft}
@@ -569,7 +626,7 @@
                 <button type="button" class="action-button" on:click={submitChatDraft} disabled={!chatDraft.trim()}>
                   Send
                 </button>
-              </div>
+              </div>{/if}
             </div>
           {:else if isEditing}
             <textarea
@@ -578,10 +635,26 @@
               on:input={handleDraftInput}
               spellcheck="false"
             ></textarea>
-          {:else if viewMode === 'rendered'}
-            <div class="rendered">{@html activeHtml}</div>
           {:else}
-            <pre>{activeMarkdown}</pre>
+            {#if viewMode === 'rendered'}
+              <div class="rendered">{@html activeHtml}</div>
+            {:else}
+              <pre>{activeMarkdown}</pre>
+            {/if}
+
+            {#if canWrite && activeTab.kind === 'task' && activeTaskRecord()}
+              <div class="task-composer">
+                <textarea
+                  class="chat-input"
+                  bind:value={taskInputDraft}
+                  on:keydown={sendTaskInputFromKeyboard}
+                  placeholder="Send stdin to the running delegate. Ctrl+Enter sends."
+                ></textarea>
+                <button type="button" class="action-button" on:click={submitTaskInput} disabled={!taskInputDraft.trim()}>
+                  Send Input
+                </button>
+              </div>
+            {/if}
           {/if}
         {:else}
           <div class="welcome">
@@ -593,6 +666,9 @@
           </div>
         {/if}
       </article>
+      {#if secondaryTab}
+        <aside class="comparison"><header><strong>Compare: {secondaryTab.title}</strong><button on:click={()=>dispatch('compareTab',{id:''})}>Close</button></header><div class="rendered">{@html secondaryHtml}</div></aside>
+      {/if}
     </section>
 
     <div
@@ -1084,6 +1160,8 @@
     border-bottom: 1px solid #1b3a1b;
     padding-bottom: 8px;
   }
+  .comparison { border-top: 1px solid #26384c; padding: 16px 22px; max-height: 42vh; overflow: auto; background: #0d1723; }
+  .comparison header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 
   .tab {
     display: inline-flex;
@@ -1240,6 +1318,16 @@
     gap: 8px;
     align-items: end;
     border-top: 1px solid #1b3a1b;
+    padding-top: 10px;
+  }
+
+  .task-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: stretch;
+    border-top: 1px solid #1b3a1b;
+    margin-top: 12px;
     padding-top: 10px;
   }
 

@@ -34,6 +34,7 @@ WORKDIR /pb
 COPY --from=frontend /src/frontend/dist /pb/pb_public
 COPY pocketbase-v1/pb_migrations /pb/pb_migrations
 COPY demo-data /pb/seed-data
+COPY pocketbase-v1/pb_hooks /pb/pb_hooks
 
 VOLUME ["/pb/pb_data"]
 EXPOSE 8090

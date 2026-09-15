@@ -2,7 +2,7 @@
 
 ## 1) Direction Lock
 
-This spec supersedes prior Supabase-oriented v1 planning for new implementation work.
+This spec is the source of truth for V1 implementation work.
 
 ### Locked decisions
 
@@ -14,6 +14,30 @@ This spec supersedes prior Supabase-oriented v1 planning for new implementation 
 6. **Scaling model**: horizontal runner scaling by attaching more delegate containers to a tenant.
 7. **Minimum deployment**: 2 containers per tenant (PocketBase + one runner).
 8. **Storage model**: PocketBase-native storage by default; S3 optional.
+9. **V1 authentication**: email invitations for local PocketBase email/password users; no public self-registration. Bootstrap application credentials are `admin` / `password`, with a required password change on first login. Application roles: admin, analyst, read-only.
+10. **V2 authentication**: generic OIDC (including Okta), Google, and GitHub sign-in.
+
+### Integration scope
+
+- **GitHub PR intake**: review any opened or updated PR in selected repositories, using the PR description and diff as triage context.
+- **GitHub output**: defer wiring to a skill and MCP configuration exposed through settings; no dedicated output implementation is planned at this point.
+- **Jira**: Jira Cloud intake with configurable projects. Output actions are defined by each playbook and enforced through its MCP tool policies. Status synchronization is not yet defined.
+
+### Intake triage and deduplication (V1 requirement; not yet implemented)
+
+Each intake selects a triage playbook. That playbook defines the deduplication/correlation rules, and the triage agent/runner applies them using tools to inspect existing incidents and prior decisions. This applies to GitHub PR updates, regular issues, and alerts.
+
+Source identities, delivery IDs, revisions, fingerprints, and correlation windows can inform the playbook's decision; they do not dictate whether an incident must be reused or created.
+
+The triage agent/runner chooses one of three outcomes under the playbook's MCP tool policy:
+
+1. Add a comment with relevant new context to an existing incident.
+2. Create a new incident, select its response playbook, and kick off execution.
+3. Ignore the intake and log the decision and rationale.
+
+Persist all outcomes in an intake decision log, including ignored items that have no incident. Record the intake/run ID, triage playbook version, decision, rationale, and resulting incident/task links where applicable.
+
+Delivery retry protection and idempotent side effects prevent duplicate comments, incident creation, or launches when a run is retried or processed concurrently. These execution safeguards do not replace playbook-driven incident deduplication.
 
 ---
 
@@ -213,7 +237,11 @@ Templates are markdown-backed with frontmatter policy and stored in PocketBase f
 name: "Mailbox phishing investigation"
 id: "TPL-PHISHING-0001"
 allowed_profile_roles: [analysis]
-tool_allowlist: ["email.search", "siem.query"]
+mcp_tool_policy:
+  email.search: allow
+  siem.query: allow
+  jira.create_issue: require_approval
+  jira.delete_issue: deny
 max_runtime_sec: 1800
 output_schema_version: "v1"
 ```
@@ -226,7 +254,13 @@ Runner must validate:
 
 1. task role is allowed by template,
 2. profile is enabled and role-compatible,
-3. requested tools are subset of template + profile allowlists.
+3. each MCP invocation satisfies the playbook policy (`deny`, `allow`, or `require_approval`) and profile restrictions.
+
+Unspecified tools default to `deny`. A playbook cannot override a profile restriction. `require_approval` pauses the invocation until an authorized user approves the exact tool and arguments; record the decision and bind it to that invocation. Read-only users cannot approve actions. Analysts can approve MCP actions for the current task/session only. Such approvals must not carry over to other tasks/sessions or change persistent playbook policy. Record the approving user and task/session scope alongside the invocation details.
+
+Jira output is playbook behavior, not an unconditional integration action. MCP connections and playbook policies are configurable through settings.
+
+Implementation gap: the current runner constructs a profile/template allowlist. The three-state policy and approval gate still need implementation.
 
 ---
 

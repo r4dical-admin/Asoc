@@ -3,7 +3,8 @@
     {
       "id": "INC-1001",
       "title": "Credential Stuffing Attack",
-      "files": ["artifacts.md", "overview.md", "slack.md", "timeline.md"],
+      "files": ["artifacts.md", "overview.md", "periodic-update.md", "slack.md", "timeline.md"],
+      "statusCallFile": "status-call.md",
       "chats": [
         {
           "label": "Analyst / Maya",
@@ -25,7 +26,8 @@
     {
       "id": "INC-1002",
       "title": "Suspicious OAuth Token Abuse",
-      "files": ["artifacts.md", "overview.md", "slack.md", "timeline.md"],
+      "files": ["artifacts.md", "overview.md", "periodic-update.md", "slack.md", "timeline.md"],
+      "statusCallFile": "status-call.md",
       "chats": [
         {
           "label": "Analyst / Noa",
@@ -48,6 +50,7 @@
       "id": "INC-1003",
       "title": "AI Agent Crawling Anomaly",
       "files": ["artifacts.md", "overview.md", "slack.md", "timeline.md"],
+      "statusCallFile": "status-call.md",
       "chats": [
         {
           "label": "Analyst / Rina",
@@ -114,12 +117,13 @@
     }
   ],
   "resources": {
-    "workflows": ["README.md", "auto-containment.yaml", "lateral-movement.yaml"],
+    "workflows": ["README.md", "auto-containment.yaml", "incident-overview.md", "lateral-movement.yaml", "periodic-updates.md"],
     "knowledge-base": ["README.md", "c2-patterns.md", "oauth-abuse.md", "system-design.md", "tooling-deployments.md"],
     "historic-rcas-sev1s": ["README.md", "sev1-email-bec.md", "sev1-identity-outage.md"],
-    "skills": ["README.md", "credential-risk-scorer.md", "ioc-enricher.md"],
+    "skills": ["README.md", "credential-risk-scorer.md", "github-pr-output.md", "ioc-enricher.md"],
     "data-sources": ["README.md", "edr.md", "siem.md"],
     "mcps-integrations": ["README.md", "jira-ticket-creator.md", "slack-bridge.md"],
+    "settings": ["README.md", "agent-runtime.md", "server-settings.md", "users.md"],
     "intakes": ["README.md", "automated-alert-queue.md", "cron-tasks.md", "user-report-queue.md"]
   }
 }

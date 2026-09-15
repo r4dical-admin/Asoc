@@ -1,5 +1,7 @@
 name: lateral-movement
 intent: expand visibility after signs of privilege use beyond the initial host
+ai_provider: gemini
+ai_model: gemini-3.6-flash
 required_context:
   - host relationship graph
   - privileged account history
