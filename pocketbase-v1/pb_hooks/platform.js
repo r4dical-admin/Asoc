@@ -50,4 +50,31 @@ function ownedTask(e,app,id) {
   if (task.getString('claimed_by_runner_id') !== e.auth.id || !['claimed','running'].includes(task.getString('status')) || Date.parse(task.getString('lease_expires_at')) < Date.now()) throw new ForbiddenError('Task lease is not owned by this runner.');
   return task;
 }
-module.exports={body,now,role,service,make,find,optional,json,validateDefinition,queue,receive,ownedTask};
+function triage(app, task, action, data) {
+  if (!task.getString('intake_id')) throw new BadRequestError('Triage actions require an intake task.');
+  const intake=app.findRecordById('intakes',task.getString('intake_id'));
+  const previous=optional(app,'intake_decisions','intake_id',intake.id);
+  if (previous) return previous;
+  if (!data.rationale) throw new BadRequestError('Triage requires an evidence-based rationale.');
+
+  let outcome=action, incidentId='', resultTaskId='';
+  if (action==='comment') {
+    const incident=find(app,'incidents','external_id',data.incident_id);
+    if (!data.note && !data.comment) throw new BadRequestError('An incident note is required.');
+    incidentId=incident.getString('external_id');
+    make(app,'incident_comments',{incident_id:incidentId,body:data.note||data.comment,intake_id:intake.id,task_id:task.id,created_at:now()});
+  } else if (action==='create') {
+    if (!data.title || !data.playbook_id) throw new BadRequestError('A new incident requires a title and response playbook.');
+    const severity=data.severity||'SEV3';
+    if (!['SEV1','SEV2','SEV3','SEV4'].includes(severity)) throw new BadRequestError('Incident severity must be SEV1, SEV2, SEV3, or SEV4.');
+    const response=find(app,'templates','external_id',data.playbook_id);
+    if (json(response,'definition')?.role==='triage') throw new BadRequestError('Select a response playbook, not triage.');
+    incidentId='INC-'+$security.randomString(12);
+    make(app,'incidents',{external_id:incidentId,title:data.title,severity,status:'active',opened_at:now()});
+    resultTaskId=queue(app,{incident_id:incidentId,template_id:data.playbook_id,title:data.title,context_refs_json:{intake:json(intake,'payload'),triage_rationale:data.rationale}},'triage').id;
+  } else if (action!=='ignore') throw new BadRequestError('Unknown triage action.');
+
+  const decision=make(app,'intake_decisions',{intake_id:intake.id,task_id:task.id,playbook_id:task.getString('template_id'),playbook_version:(json(task,'policy_snapshot')||{}).version||1,outcome,rationale:data.rationale,incident_id:incidentId,result_task_id:resultTaskId,decided_at:now()});
+  intake.set('status',outcome);app.save(intake);return decision;
+}
+module.exports={body,now,role,service,make,find,optional,json,validateDefinition,queue,receive,ownedTask,triage};

@@ -2,6 +2,9 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 export const builtinTools=[
   {name:'asoc.search_incidents',description:'Find incidents, comments, prior triage decisions and response playbooks to assess duplicates.',inputSchema:{type:'object',properties:{query:{type:'string'}}}},
+  {name:'asoc.open_incident',description:'Open an ASOC incident for this intake and immediately launch the selected response playbook. This finalizes the triage decision.',inputSchema:{type:'object',properties:{title:{type:'string'},severity:{type:'string',enum:['SEV1','SEV2','SEV3','SEV4']},playbook_id:{type:'string'},rationale:{type:'string'}},required:['title','playbook_id','rationale']}},
+  {name:'asoc.add_incident_note',description:'Add a note from this intake to an existing ASOC incident. This finalizes the intake as correlated with that incident.',inputSchema:{type:'object',properties:{incident_id:{type:'string'},note:{type:'string'},rationale:{type:'string'}},required:['incident_id','note','rationale']}},
+  {name:'asoc.ignore_intake',description:'Ignore this intake with an evidence-based rationale and record the final triage decision.',inputSchema:{type:'object',properties:{rationale:{type:'string'}},required:['rationale']}},
   {name:'asoc.triage_decide',description:'Record intake triage: comment on an existing incident; create a new incident and launch its playbook; or ignore with rationale.',inputSchema:{type:'object',properties:{outcome:{type:'string',enum:['comment','create','ignore']},rationale:{type:'string'},incident_id:{type:'string'},comment:{type:'string'},title:{type:'string'},severity:{type:'string'},playbook_id:{type:'string'}},required:['outcome','rationale']}}
 ];
 export async function connectTools(configs,env=process.env){

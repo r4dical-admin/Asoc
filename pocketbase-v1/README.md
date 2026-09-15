@@ -112,6 +112,11 @@ This folder now includes executable scaffolding for the v1 model:
   - renders markdown content in center tabs.
 - `pocketbase-v1/runner/` — authenticated runner that atomically claims work, renews leases, executes concurrent mock, AI, or container delegates, streams lifecycle output, enforces MCP policy and approvals, and handles cancellation, timeouts, retries, and stale attempts.
 
+Triage profiles include built-in tools to search incidents, open an internal incident and launch a selected response
+playbook, add an intake note to an existing incident, or ignore an intake with a recorded rationale. Each final action
+is atomic and deduplicated by intake. External ticket systems such as Jira are connected as MCP tools and enabled
+per playbook with `allow` or `require_approval`.
+
 ## 8) v0.1 local stack
 
 The fastest full local path runs the tenant PocketBase container and the runner container together:

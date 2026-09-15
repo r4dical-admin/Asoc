@@ -15,6 +15,7 @@
 
 - [x] Assign each intake a triage playbook that defines its deduplication/correlation rules for PRs, issues, and alerts.
 - [x] Give the triage agent/runner tools to find relevant existing incidents and inspect source IDs, revisions, and prior triage decisions as evidence under the intake's playbook.
+- [x] Give triage tasks explicit atomic tools to open an incident with a selected response playbook, add an intake note to an existing incident, or ignore the intake with a recorded rationale.
 - [x] Support three triage outcomes: add a comment to an existing incident; create a new incident, select its playbook, and kick it off; or ignore the intake and log the reason.
 - [x] Persist every triage decision in an intake decision log, including ignored items, with the intake/run ID, playbook version, rationale, and any resulting incident/task links.
 - [x] Make delivery retries and triage side effects idempotent without replacing the playbook's incident deduplication decision with fixed source-key rules.

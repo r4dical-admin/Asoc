@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parsePlaybook,redact,retryState,resolveAI} from '../src/policy.js';
 import {normalizeGithub,normalizeJira,verifySignature} from '../src/intakes.js';
+import {builtinTools} from '../src/tools.js';
 import {createHmac} from 'node:crypto';
 
 test('parses nested YAML playbook policies',()=>{
@@ -32,4 +33,10 @@ test('verifies webhook signatures and selected scopes',()=>{
  assert.equal(gh.source_key,'o/r#2');
  const jira=normalizeJira({issue:{id:'1',key:'SEC-1',fields:{project:{key:'SEC'},updated:'now'}}},{projects:['SEC'],site:'acme'});
  assert.equal(jira.source_key,'acme#1');
+});
+test('offers atomic built-in triage actions',()=>{
+ const tools=new Map(builtinTools.map(tool=>[tool.name,tool]));
+ for(const name of ['asoc.search_incidents','asoc.open_incident','asoc.add_incident_note','asoc.ignore_intake'])assert(tools.has(name));
+ assert.deepEqual(tools.get('asoc.open_incident').inputSchema.required,['title','playbook_id','rationale']);
+ assert.deepEqual(tools.get('asoc.add_incident_note').inputSchema.required,['incident_id','note','rationale']);
 });

@@ -23,10 +23,17 @@ await request(`/api/asoc/chats/${chat.id}/messages`,{method:'POST',headers,body:
 const queued=await request('/api/asoc/tasks',{method:'POST',headers,body:JSON.stringify({title:'Cancellation smoke',template_id:'TPL-PERIODIC'})});
 const service=(await request('/api/collections/services/auth-with-password',{method:'POST',headers:json,body:JSON.stringify({identity:'runner@asoc.local',password:process.env.ASOC_RUNNER_PASSWORD})}));
 const serviceHeaders={...json,Authorization:service.token};
+const triageTask=await request(`/api/asoc/tasks/${first.task_id}/claim`,{method:'POST',headers:serviceHeaders,body:'{}'});
+const toolCall=await request('/api/asoc/tools/request',{method:'POST',headers:serviceHeaders,body:JSON.stringify({task_id:triageTask.id,call_key:'smoke-ignore',tool:'asoc.ignore_intake',arguments:{rationale:'Smoke test intake'}})});
+await request(`/api/asoc/tools/${toolCall.id}/start`,{method:'POST',headers:serviceHeaders,body:'{}'});
+const decision=await request(`/api/asoc/tools/${toolCall.id}/builtin`,{method:'POST',headers:serviceHeaders,body:'{}'});
+await request(`/api/asoc/tools/${toolCall.id}/finish`,{method:'POST',headers:serviceHeaders,body:JSON.stringify({result:decision})});
+if(decision.outcome!=='ignore'||decision.intake_id!==first.id)throw new Error('Built-in triage action did not record the intake decision.');
+await request(`/api/asoc/tasks/${triageTask.id}/progress`,{method:'POST',headers:serviceHeaders,body:JSON.stringify({status:'succeeded'})});
 await request(`/api/asoc/tasks/${queued.id}/claim`,{method:'POST',headers:serviceHeaders,body:'{}'});
 const duplicateClaim=await fetch(`${base}/api/asoc/tasks/${queued.id}/claim`,{method:'POST',headers:serviceHeaders,body:'{}'});
 if(duplicateClaim.status!==400)throw new Error('Atomic claim accepted a second claim.');
 await request(`/api/asoc/tasks/${queued.id}/cancel`,{method:'POST',headers});
 const canceled=await request(`/api/asoc/tasks/${queued.id}/progress`,{method:'POST',headers:serviceHeaders,body:JSON.stringify({status:'canceled'})});
 if(canceled.status!=='canceled')throw new Error('Running cancellation was not finalized.');
-console.log('API smoke passed: auth, first-login change, intake idempotency, persisted chat, atomic claim, cancellation.');
+console.log('API smoke passed: auth, first-login change, intake idempotency, atomic triage action, persisted chat, atomic claim, cancellation.');

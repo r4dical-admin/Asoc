@@ -95,16 +95,18 @@ routerAdd('POST','/api/asoc/tools/{id}/finish',(e)=>{
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/tools/{id}/builtin',(e)=>{
   const p=require(__hooks+'/platform.js');let result;
-  $app.runInTransaction(app=>{const call=app.findRecordById('tool_calls',e.request.pathValue('id'));const t=p.ownedTask(e,app,call.getString('task_id'));if(call.getString('status')!=='executing'||call.getInt('attempt_no')!==t.getInt('attempt_no'))throw new ForbiddenError();const b=call.get('arguments')||{};
+  $app.runInTransaction(app=>{const call=app.findRecordById('tool_calls',e.request.pathValue('id'));const t=p.ownedTask(e,app,call.getString('task_id'));if(call.getString('status')!=='executing'||call.getInt('attempt_no')!==t.getInt('attempt_no'))throw new ForbiddenError();const b=p.json(call,'arguments')||{};
     if(call.getString('tool')==='asoc.search_incidents'){
       result={incidents:app.findRecordsByFilter('incidents','title ~ {:q} || external_id = {:q}','',50,0,{q:b.query||''}),decisions:app.findRecordsByFilter('intake_decisions','','-decided_at',50),comments:app.findRecordsByFilter('incident_comments','','-created_at',50),playbooks:app.findRecordsByFilter('templates','','',50)};
+    }else if(call.getString('tool')==='asoc.open_incident'){
+      result=p.triage(app,t,'create',b);
+    }else if(call.getString('tool')==='asoc.add_incident_note'){
+      result=p.triage(app,t,'comment',b);
+    }else if(call.getString('tool')==='asoc.ignore_intake'){
+      result=p.triage(app,t,'ignore',b);
     }else if(call.getString('tool')==='asoc.triage_decide'){
-      const intake=app.findRecordById('intakes',t.getString('intake_id'));const old=p.optional(app,'intake_decisions','intake_id',intake.id);if(old){result=old;return;}
       if(!['comment','create','ignore'].includes(b.outcome)||!b.rationale)throw new BadRequestError('Triage needs outcome and rationale.');
-      let incidentId='',taskId='';
-      if(b.outcome==='comment'){const incident=p.find(app,'incidents','external_id',b.incident_id);incidentId=incident.getString('external_id');if(!b.comment)throw new BadRequestError('Comment is required.');p.make(app,'incident_comments',{incident_id:incidentId,body:b.comment,intake_id:intake.id,task_id:t.id,created_at:p.now()});}
-      if(b.outcome==='create'){if(!b.title||!b.playbook_id)throw new BadRequestError('New incident requires title and response playbook.');const response=p.find(app,'templates','external_id',b.playbook_id);if(p.json(response,'definition')?.role==='triage')throw new BadRequestError('Select a response playbook, not triage.');incidentId='INC-'+$security.randomString(12);p.make(app,'incidents',{external_id:incidentId,title:b.title,severity:b.severity||'SEV3',status:'active',opened_at:p.now()});taskId=p.queue(app,{incident_id:incidentId,template_id:b.playbook_id,title:b.title,context_refs_json:{intake:p.json(intake,'payload'),triage_rationale:b.rationale}},'triage').id;}
-      result=p.make(app,'intake_decisions',{intake_id:intake.id,task_id:t.id,playbook_id:t.getString('template_id'),playbook_version:(p.json(t,'policy_snapshot')||{}).version||1,outcome:b.outcome,rationale:b.rationale,incident_id:incidentId,result_task_id:taskId,decided_at:p.now()});intake.set('status',b.outcome);app.save(intake);
+      result=p.triage(app,t,b.outcome,b);
     }else throw new BadRequestError('Unknown builtin tool.');
   });return e.json(200,result);
 },$apis.requireAuth());
