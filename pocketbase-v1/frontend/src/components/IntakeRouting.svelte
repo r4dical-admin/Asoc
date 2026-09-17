@@ -2,9 +2,9 @@
  import {onMount,createEventDispatcher} from 'svelte';
  import {listIntakeConfigs,listTemplates,listResources,saveIntakeConfig} from '../lib/pocketbase';
  const dispatch=createEventDispatcher<{refresh:void}>();
- let configs:any[]=[],playbooks:any[]=[],resources:any[]=[],id='',name='',kind='manual',playbook='',enabled=true,refs:string[]=[],config='{}',busy=false,error='',success='';
+ let configs:any[]=[],playbooks:any[]=[],resources:any[]=[],id='',name='',kind='manual',playbook='TPL-MANUAL-TRIAGE',enabled=true,refs:string[]=[],config='{}',busy=false,error='',success='';
  async function load(){[configs,playbooks,resources]=await Promise.all([listIntakeConfigs(),listTemplates(),listResources()]);}
- function select(){const c=configs.find(c=>c.id===id);name=c?.name||'';kind=c?.kind||'manual';playbook=c?.playbook_id||'';enabled=c?.enabled??true;refs=c?.config?.resource_ids||[];config=JSON.stringify(c?.config||{},null,2);success='';}
+ function select(){const c=configs.find(c=>c.id===id);name=c?.name||'';kind=c?.kind||'manual';playbook=c?.playbook_id||'TPL-MANUAL-TRIAGE';enabled=c?.enabled??true;refs=c?.config?.resource_ids||[];config=JSON.stringify(c?.config||{},null,2);success='';}
  async function save(){busy=true;error='';success='';try{const parsed=JSON.parse(config);if(!parsed||Array.isArray(parsed)||typeof parsed!=='object')throw new Error('Configuration must be a JSON object.');const saved=await saveIntakeConfig({name,kind,enabled,playbook_id:playbook,config:{...parsed,resource_ids:refs}},id||undefined);await load();id=saved.id;select();success='Saved. New items will run this triage playbook.';dispatch('refresh');}catch(e){error=e instanceof Error?e.message:'Could not save intake';}finally{busy=false;}}
  onMount(()=>{load().catch(e=>error=e.message);});
 </script>

@@ -3,6 +3,7 @@
   import DashboardView from './DashboardView.svelte';
   import ControlPanel from './ControlPanel.svelte';
   import ResourceEditor from './ResourceEditor.svelte';
+  import CatalogView from './CatalogView.svelte';
   import TaskActions from './TaskActions.svelte';
   import type {ToolCallRecord} from '../lib/pocketbase';
   import type {
@@ -18,7 +19,9 @@
     title: string;
     subtitle?: string;
     markdown: string;
-    kind: 'incident' | 'task' | 'resource' | 'chat' | 'dashboard';
+    kind: 'incident' | 'task' | 'resource' | 'chat' | 'dashboard' | 'catalog';
+    catalogSection?:string;
+    catalogCategory?:string;
     dashboardIncidentId?: string;
     editable?: boolean;
     editTarget?: {
@@ -81,6 +84,7 @@
     openDashboard: { incident?: IncidentRecord };
     openTask: { task: TaskRecord };
     openResource: { resource: ResourceRecord };
+    openCatalog: {section:string;category?:string;title:string};
     openOldIncident: { incident: OldIncidentRecord };
     openAdHocChat: { chat: AdHocChatSession };
     createAdHocChat: void;
@@ -602,6 +606,8 @@
             <span class="chat-status">Ad-hoc chat</span>
           {:else if activeTab?.kind === 'dashboard'}
             <span class="chat-status">Live dashboard</span>
+          {:else if activeTab?.kind === 'catalog'}
+            <span class="chat-status">Catalog table</span>
           {:else if isEditing}
             <button type="button" class="action-button" on:click={() => dispatch('saveEdit')} disabled={saving}>
               {saving ? 'Saving' : 'Save'}
@@ -662,6 +668,8 @@
             </div>
           {:else if activeTab.kind === 'dashboard'}
             {#key activeTab.id}<DashboardView incidentId={activeTab.dashboardIncidentId ?? ''} {canWrite} />{/key}
+          {:else if activeTab.kind === 'catalog'}
+            {#key activeTab.id}<CatalogView section={activeTab.catalogSection||''} category={activeTab.catalogCategory||''} on:openResource on:openTask on:refresh />{/key}
           {:else if isEditing}
             <textarea
               class="editor"
@@ -716,12 +724,13 @@
 
     <aside class="pane right-pane" class:collapsed={rightPanelCollapsed} aria-label="Resource catalog" aria-hidden={rightPanelCollapsed}>
       {#each ['health','intakes','settings'] as section}
-        <details class="group"><summary class="group-title">{section === 'health' ? 'Runtime health' : section === 'intakes' ? 'Intakes' : 'Settings'}</summary>
+        <details class="group"><summary class="group-title">{section === 'health' ? 'Runtime health' : section === 'intakes' ? 'Intakes' : 'Settings'}<button class="section-open" aria-label={`Open ${section} in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section,title:section==='health'?'Runtime health':section==='intakes'?'Intakes':'Settings'})}>↗</button></summary>
           <ControlPanel {section} on:refresh={()=>dispatch('refresh')} />
         </details>
       {/each}
       <div class="pane-heading">
         <h2>Workers</h2>
+        <button class="section-open" aria-label="Open Workers in a tab" on:click={()=>dispatch('openCatalog',{section:'workers',title:'Workers'})}>↗</button>
       </div>
       <div class="resource-groups">
         {#each Object.entries(workerGroups) as [workerId, workerTasks]}
@@ -729,6 +738,7 @@
             <summary class="group-title">
               <strong>{workerLabel(workerId)}</strong>
               <em>{workerTasks.length}</em>
+              <button class="section-open" aria-label={`Open ${workerLabel(workerId)} tasks in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'worker',category:workerId,title:workerLabel(workerId)+' tasks'})}>↗</button>
             </summary>
             <div class="group-files">
               {#each workerTasks as task}
@@ -750,6 +760,7 @@
 
       <div class="pane-heading task-heading">
         <h2>Resources</h2>
+        <button class="section-open" aria-label="Open Resources in a tab" on:click={()=>dispatch('openCatalog',{section:'resources',title:'Resources'})}>↗</button>
         <div class="pane-tools">
           <button type="button" class="tool-button" title="Toggle right panel" on:click={() => (rightPanelCollapsed = !rightPanelCollapsed)}>
             {rightPanelCollapsed ? '<' : '>'}
@@ -770,6 +781,7 @@
             <summary class="group-title">
               <strong>{resourceGroupLabel(category)}</strong>
               <em>{items.length}</em>
+              <button class="section-open" aria-label={`Open ${resourceGroupLabel(category)} in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'resources',category,title:resourceGroupLabel(category)})}>↗</button>
             </summary>
             <div class="group-files">
               {#each items as resource}
@@ -788,10 +800,10 @@
           <p class="empty">No resources match.</p>
         {/each}
       </div>
-      {#if userRole==='admin'}<details class="group"><summary class="group-title">Add resource</summary><ResourceEditor on:refresh={()=>dispatch('refresh')} /></details>{/if}
-      <details class="group"><summary class="group-title">System Help</summary>
+      {#if userRole==='admin'}<details class="group"><summary class="group-title">Add resource<button class="section-open" aria-label="Open Add resource in a tab" on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'add',title:'Add resource'})}>↗</button></summary><ResourceEditor on:refresh={()=>dispatch('refresh')} /></details>{/if}
+      <details class="group"><summary class="group-title">System Help<button class="section-open" aria-label="Open System Help in a tab" on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'help',title:'System Help'})}>↗</button></summary>
         {#each ['settings','intakes'] as category}
-          <details class="group"><summary class="group-title">{category==='settings'?'Settings':'Intakes'}</summary>
+          <details class="group"><summary class="group-title">{category==='settings'?'Settings':'Intakes'}<button class="section-open" aria-label={`Open ${category} help in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'resources',category,title:(category==='settings'?'Settings':'Intakes')+' help'})}>↗</button></summary>
             {#each helpResources.filter(r=>r.category===category) as resource (resource.id)}
               <button type="button" class="link" on:click={()=>dispatch('openResource',{resource})}>{resource.title}</button>
             {:else}<p class="empty">No matching help topics.</p>{/each}
@@ -806,6 +818,9 @@
 <svelte:window on:pointermove={handlePointerMove} on:pointerup={stopResize} on:pointercancel={stopResize} />
 
 <style>
+  .section-open{font:inherit;color:#7dff8a;background:#102010;border:1px solid #2a5a2a;border-radius:2px;cursor:pointer;padding:2px 6px;margin-left:auto;flex-shrink:0}
+  .right-pane .group-title{display:flex;align-items:center;gap:8px}
+  .right-pane .group-title strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
   .approval-needed{color:#f6d365!important}
   :global(body) {
     margin: 0;
@@ -1575,6 +1590,8 @@
   @media (max-width: 980px) {
     .layout {
       grid-template-columns: 1fr;
+      grid-template-areas: 'left' 'workspace' 'right';
+      grid-template-rows: auto auto auto;
       height: auto;
       min-height: calc(100vh - 56px);
     }

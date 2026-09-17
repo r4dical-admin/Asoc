@@ -19,6 +19,9 @@ resourceForm.set('external_id',`intake-instructions/smoke-${suffix}.md`);
 resourceForm.set('title','Smoke intake instructions');resourceForm.set('category','intake-instructions');
 resourceForm.set('body_md_file',new Blob(['Investigate the report and record the triage rationale.'],{type:'text/markdown'}),'instructions.md');
 const resource=await request('/api/collections/resources/records',{method:'POST',headers:{Authorization:auth.token},body:resourceForm});
+if(!resource.catalog_created_at||!resource.catalog_updated_at||!resource.created_by.includes(auth.record.id))throw new Error('Resource creation metadata was not recorded.');
+const auditedResource=await request('/api/collections/resources/records/'+resource.id,{method:'PATCH',headers,body:JSON.stringify({title:'Updated smoke instructions',created_by:'Forged author',catalog_created_at:'2000-01-01 00:00:00.000Z'})});
+if(auditedResource.created_by!==resource.created_by||auditedResource.catalog_created_at!==resource.catalog_created_at)throw new Error('Resource author or creation time can be forged.');
 const playbookForm=new FormData();
 playbookForm.set('external_id',`PB-SMOKE-${suffix}`);playbookForm.set('name','Smoke triage');playbookForm.set('role_type','triage');playbookForm.set('version','1');
 playbookForm.set('definition',JSON.stringify({schema_version:1,name:'Smoke triage',role:'triage',instructions:'Review each intake.',required_context:[],outputs:['markdown'],max_runtime_sec:600,mcp_tool_policy:{}}));
@@ -38,9 +41,11 @@ if(dashboard.artifact?.protocol_version!=='v0.9'||!Array.isArray(dashboard.artif
 const dashboardData=await request(`/api/asoc/dashboards/${dashboard.dashboard.id}/data`,{method:'POST',headers,body:JSON.stringify({days:7,severity:''})});
 if(!dashboardData.results?.operations_flow||dashboardData.results?.restricted_incidents?.total!==0)throw new Error('Dashboard queries or restricted incident summary are invalid.');
 const configs=await request('/api/collections/intake_configs/records',{headers});
-const manual=configs.items.find(item=>item.kind==='manual'&&item.playbook_id==='TPL-TRIAGE');
+const manual=configs.items.find(item=>item.kind==='manual'&&item.playbook_id==='TPL-MANUAL-TRIAGE');
+if(!manual)throw new Error('Dedicated manual intake triage was not assigned.');
 const payload={config_id:manual.id,delivery_key:'smoke-'+Date.now(),payload:{summary:'Smoke test'}};
 const first=await request('/api/asoc/intakes',{method:'POST',headers,body:JSON.stringify(payload)});
+if(!first.created_by?.includes(auth.record.id))throw new Error('Manual intake author was not recorded.');
 const duplicate=await request('/api/asoc/intakes',{method:'POST',headers,body:JSON.stringify(payload)});
 if(first.id!==duplicate.id)throw new Error('Duplicate delivery created another intake.');
 const chat=await request('/api/asoc/chats',{method:'POST',headers,body:JSON.stringify({title:'Smoke test'})});
@@ -61,4 +66,4 @@ if(duplicateClaim.status!==400)throw new Error('Atomic claim accepted a second c
 await request(`/api/asoc/tasks/${queued.id}/cancel`,{method:'POST',headers});
 const canceled=await request(`/api/asoc/tasks/${queued.id}/progress`,{method:'POST',headers:serviceHeaders,body:JSON.stringify({status:'canceled'})});
 if(canceled.status!=='canceled')throw new Error('Running cancellation was not finalized.');
-console.log('API smoke passed: auth, first-login change, A2UI dashboard queries, intake idempotency, atomic triage action, persisted chat, atomic claim, cancellation.');
+console.log('API smoke passed: auth, catalog metadata, manual intake playbook routing, A2UI dashboards, intake idempotency, triage actions, chat, claim, and cancellation.');

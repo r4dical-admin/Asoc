@@ -68,10 +68,10 @@ routerAdd('POST','/api/asoc/chats/{id}/messages',(e)=>{
   });return e.json(200,t);
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/intakes',(e)=>{
-  const p=require(__hooks+'/platform.js');p.role(e,['admin','analyst']);let r;$app.runInTransaction(app=>{const b=p.body(e);const c=app.findRecordById('intake_configs',b.config_id);if(c.getString('kind')!=='manual')throw new BadRequestError('Choose a manual intake.');r=p.receive(app,c,b);});return e.json(200,r);
+  const p=require(__hooks+'/platform.js');p.role(e,['admin','analyst']);let r;$app.runInTransaction(app=>{const b=p.body(e);const c=app.findRecordById('intake_configs',b.config_id);if(c.getString('kind')!=='manual')throw new BadRequestError('Choose a manual intake.');r=p.receive(app,c,b,'User: '+(e.auth.getString('name')||e.auth.getString('username')||e.auth.id)+' ['+e.auth.id+']');});return e.json(200,r);
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/intakes/receive',(e)=>{
-  const p=require(__hooks+'/platform.js');p.service(e);let r;$app.runInTransaction(app=>{const b=p.body(e);r=p.receive(app,app.findRecordById('intake_configs',b.config_id),b);});return e.json(200,r);
+  const p=require(__hooks+'/platform.js');p.service(e);let r;$app.runInTransaction(app=>{const b=p.body(e);r=p.receive(app,app.findRecordById('intake_configs',b.config_id),b,'Service: '+e.auth.id);});return e.json(200,r);
 },$apis.requireAuth());
 routerAdd('GET','/api/asoc/dashboards/operations',(e)=>{
   const p=require(__hooks+'/platform.js'),d=require(__hooks+'/dashboard.js');p.role(e,['admin','analyst','read-only']);let result;

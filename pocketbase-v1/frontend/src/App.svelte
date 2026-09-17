@@ -568,6 +568,7 @@
   on:queueTask={(event) => queueTask(event.detail.incident)}
   on:sendTaskInput={(event) => sendTaskInput(event.detail.task, event.detail.message)}
   on:openResource={(event) => openResourceTab(event.detail.resource)}
+  on:openCatalog={(event)=>activateOrAddTab({id:`catalog:${event.detail.section}:${event.detail.category||''}`,kind:'catalog',title:event.detail.title,subtitle:'Records and metadata',markdown:'',catalogSection:event.detail.section,catalogCategory:event.detail.category})}
   on:openOldIncident={(event) => openOldIncidentTab(event.detail.incident)}
   on:openAdHocChat={(event) => openAdHocChatTab(event.detail.chat)}
   on:createAdHocChat={createAdHocChat}

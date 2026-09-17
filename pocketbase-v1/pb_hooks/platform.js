@@ -49,13 +49,13 @@ function queue(app, data, owner) {
   if (ai.provider && ai.provider !== 'mock' && !ai.model) throw new BadRequestError('Task provider override requires a model.');
   return make(app,'tasks',{external_id:'TASK-'+$security.randomString(16),title:data.title || template.getString('name'),incident_id:data.incident_id || '',template_id:template.getString('external_id'),profile_id:profile.getString('external_id'),role_type:d.role,status:'queued',priority:Number(data.priority)||5,context_refs_json:context,created_by_user_id:owner,max_attempts:Math.min(5,Math.max(1,Number(data.max_attempts)||3)),session_id:data.session_id || '',intake_id:data.intake_id || '',policy_snapshot:{playbook:d,version:template.getInt('version'),profile_tools:json(profile,'tool_allowlist_json') || []}});
 }
-function receive(app, config, data) {
+function receive(app, config, data, actor='System') {
   if (!config.getBool('enabled')) throw new BadRequestError('Intake is disabled.');
   if (!data.delivery_key) throw new BadRequestError('A delivery key is required.');
   const existing=app.findRecordsByFilter('intakes','config_id = {:c} && delivery_key = {:d}','',1,0,{c:config.id,d:data.delivery_key});
   if (existing.length) return existing[0];
   validateIntakeConfig(app,config);
-  const intake=make(app,'intakes',{config_id:config.id,source_key:data.source_key || '',delivery_key:data.delivery_key,revision:data.revision || '',payload:data.payload || {},status:'queued',received_at:now()});
+  const intake=make(app,'intakes',{config_id:config.id,created_by:actor,source_key:data.source_key || '',delivery_key:data.delivery_key,revision:data.revision || '',payload:data.payload || {},status:'queued',received_at:now()});
   const task=queue(app,{title:'Triage: '+config.getString('name'),template_id:config.getString('playbook_id'),intake_id:intake.id,context_refs_json:{resource_ids:(json(config,'config')||{}).resource_ids||[],intake:{id:intake.id,source_key:data.source_key,revision:data.revision,payload:data.payload}}},'intake');
   intake.set('task_id',task.id); app.save(intake); return intake;
 }
