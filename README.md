@@ -140,6 +140,7 @@ The earlier static workspace concept remains available at `interface-example.htm
 - [System specification](pocketbase-v1/SPECS.md) — backend collections, contracts, roles, and runtime behavior.
 - [Deployment guide](pocketbase-v1/DEPLOYMENT.md) — container and tenant deployment notes.
 - [Roadmap and release acceptance](TODO.md) — implementation status and remaining end-to-end checks.
+- [Minor todo](TODO-MINOR.md) — small UX and presentation improvements.
 
 ## License, responsibility, and contributions
 
