@@ -73,6 +73,34 @@ routerAdd('POST','/api/asoc/intakes',(e)=>{
 routerAdd('POST','/api/asoc/intakes/receive',(e)=>{
   const p=require(__hooks+'/platform.js');p.service(e);let r;$app.runInTransaction(app=>{const b=p.body(e);r=p.receive(app,app.findRecordById('intake_configs',b.config_id),b);});return e.json(200,r);
 },$apis.requireAuth());
+routerAdd('GET','/api/asoc/dashboards/operations',(e)=>{
+  const p=require(__hooks+'/platform.js'),d=require(__hooks+'/dashboard.js');p.role(e,['admin','analyst','read-only']);let result;
+  $app.runInTransaction(app=>{const dashboard=p.find(app,'dashboards','external_id','DASH-OPERATIONS');result=d.response(app,e.auth,dashboard);});return e.json(200,result);
+},$apis.requireAuth());
+routerAdd('GET','/api/asoc/incidents/{id}/dashboard',(e)=>{
+  const p=require(__hooks+'/platform.js'),d=require(__hooks+'/dashboard.js');p.role(e,['admin','analyst','read-only']);const incidentId=e.request.pathValue('id');p.incidentForUser($app,e.auth,incidentId);
+  const list=$app.findRecordsByFilter('dashboards','scope = "incident" && incident_id = {:id}','',1,0,{id:incidentId});if(!list.length)return e.json(200,{dashboard:null,artifact:null});
+  let result;$app.runInTransaction(app=>{result=d.response(app,e.auth,app.findRecordById('dashboards',list[0].id));});return e.json(200,result);
+},$apis.requireAuth());
+routerAdd('POST','/api/asoc/incidents/{id}/dashboard',(e)=>{
+  const p=require(__hooks+'/platform.js'),d=require(__hooks+'/dashboard.js');p.role(e,['admin','analyst']);const incidentId=e.request.pathValue('id');p.incidentForUser($app,e.auth,incidentId);const b=p.body(e);let result;
+  $app.runInTransaction(app=>{let list=app.findRecordsByFilter('dashboards','scope = "incident" && incident_id = {:id}','',1,0,{id:incidentId});let dashboard=list[0];
+    if(!dashboard){dashboard=p.make(app,'dashboards',{external_id:'DASH-'+$security.randomString(16),name:incidentId+' dashboard',scope:'incident',incident_id:incidentId,owner_id:e.auth.id,playbook_id:'TPL-DASHBOARD',instructions:b.instructions||'Show the incident state, recent response tasks, and analyst activity.',config_revision:1,last_generation_status:'never'});}
+    else if(typeof b.instructions==='string'&&b.instructions.trim()&&b.instructions.trim()!==dashboard.getString('instructions')){dashboard.set('instructions',b.instructions.trim());dashboard.set('config_revision',dashboard.getInt('config_revision')+1);app.save(dashboard);}
+    d.queue(app,e.auth,dashboard,b.instructions||'',true);result=d.response(app,e.auth,dashboard);
+  });return e.json(200,result);
+},$apis.requireAuth());
+routerAdd('POST','/api/asoc/dashboards/{id}/regenerate',(e)=>{
+  const p=require(__hooks+'/platform.js'),d=require(__hooks+'/dashboard.js');p.role(e,['admin','analyst']);const b=p.body(e);let result;
+  $app.runInTransaction(app=>{const dashboard=app.findRecordById('dashboards',e.request.pathValue('id'));if(dashboard.getString('scope')==='incident')p.incidentForUser(app,e.auth,dashboard.getString('incident_id'));
+    if(typeof b.instructions==='string'&&b.instructions.trim()&&b.instructions.trim()!==dashboard.getString('instructions')){dashboard.set('instructions',b.instructions.trim());dashboard.set('config_revision',dashboard.getInt('config_revision')+1);app.save(dashboard);}
+    d.queue(app,e.auth,dashboard,b.instructions||'',true);result=d.response(app,e.auth,dashboard);
+  });return e.json(200,result);
+},$apis.requireAuth());
+routerAdd('POST','/api/asoc/dashboards/{id}/data',(e)=>{
+  const p=require(__hooks+'/platform.js'),d=require(__hooks+'/dashboard.js');p.role(e,['admin','analyst','read-only']);const dashboard=$app.findRecordById('dashboards',e.request.pathValue('id'));if(dashboard.getString('scope')==='incident')p.incidentForUser($app,e.auth,dashboard.getString('incident_id'));
+  const artifact=d.artifact($app,dashboard);if(!artifact)throw new BadRequestError('Dashboard has no published artifact.');const bindings=p.json(artifact,'query_bindings')||[];return e.json(200,d.data($app,e.auth,dashboard,bindings,p.body(e)||{}));
+},$apis.requireAuth());
 routerAdd('POST','/api/asoc/tools/request',(e)=>{
   const p=require(__hooks+'/platform.js');let call;
   $app.runInTransaction(app=>{const b=p.body(e);const t=p.ownedTask(e,app,b.task_id);const snapshot=p.json(t,'policy_snapshot')||{};const policy=snapshot.playbook?.mcp_tool_policy||{};
@@ -95,9 +123,21 @@ routerAdd('POST','/api/asoc/tools/{id}/finish',(e)=>{
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/tools/{id}/builtin',(e)=>{
   const p=require(__hooks+'/platform.js');let result;
-  $app.runInTransaction(app=>{const call=app.findRecordById('tool_calls',e.request.pathValue('id'));const t=p.ownedTask(e,app,call.getString('task_id'));if(call.getString('status')!=='executing'||call.getInt('attempt_no')!==t.getInt('attempt_no'))throw new ForbiddenError();const b=p.json(call,'arguments')||{};
+  const d=require(__hooks+'/dashboard.js');$app.runInTransaction(app=>{const call=app.findRecordById('tool_calls',e.request.pathValue('id'));const t=p.ownedTask(e,app,call.getString('task_id'));if(call.getString('status')!=='executing'||call.getInt('attempt_no')!==t.getInt('attempt_no'))throw new ForbiddenError();const b=p.json(call,'arguments')||{};
     if(call.getString('tool')==='asoc.search_incidents'){
       result={incidents:app.findRecordsByFilter('incidents','title ~ {:q} || external_id = {:q}','',50,0,{q:b.query||''}),decisions:app.findRecordsByFilter('intake_decisions','','-decided_at',50),comments:app.findRecordsByFilter('incident_comments','','-created_at',50),playbooks:app.findRecordsByFilter('templates','','',50)};
+    }else if(call.getString('tool')==='asoc.dashboard_capabilities'){
+      result={protocol_version:'v0.9',catalog_id:d.CATALOG,components:d.COMPONENTS,metrics:d.METRICS,limits:{components:30,bindings:12,list_rows:25}};
+    }else if(call.getString('tool')==='asoc.dashboard_query'||call.getString('tool')==='asoc.dashboard_context'){
+      const context=p.json(t,'context_refs_json')||{};const dashboard=app.findRecordById('dashboards',context.dashboard_id);const requester=app.findRecordById('users',context.requester_id);if(dashboard.getString('scope')==='incident')p.incidentForUser(app,requester,dashboard.getString('incident_id'));
+      const requested=call.getString('tool')==='asoc.dashboard_query'&&b.metric?[{id:'preview',metric:b.metric,limit:b.limit||10}]:dashboard.getString('scope')==='incident'?[{id:'summary',metric:'incident_summary'},{id:'tasks',metric:'incident_tasks',limit:10},{id:'activity',metric:'incident_activity',limit:10}]:[{id:'flow',metric:'operations_flow'},{id:'sla',metric:'sla_summary'},{id:'attention',metric:'attention_tickets',limit:10},{id:'restricted',metric:'restricted_incidents'}];
+      result=d.data(app,requester,dashboard,requested,b.filters||{});
+    }else if(call.getString('tool')==='asoc.dashboard_publish'){
+      const context=p.json(t,'context_refs_json')||{};const request=app.findRecordById('dashboard_generation_requests',context.generation_request_id);const dashboard=app.findRecordById('dashboards',context.dashboard_id);if(request.getString('status')==='succeeded')result={artifact_id:dashboard.getString('active_artifact_id'),already_published:true};else{
+        if(request.getInt('target_revision')!==dashboard.getInt('config_revision'))throw new BadRequestError('Dashboard configuration changed; this generation is superseded.');
+        d.validate(b.a2ui_messages,b.query_bindings,dashboard.getString('scope'));const previous=d.artifact(app,dashboard);const artifact=p.make(app,'dashboard_artifacts',{dashboard_id:dashboard.id,artifact_version:(previous?previous.getInt('artifact_version'):0)+1,config_revision:request.getInt('target_revision'),playbook_version:request.getInt('playbook_version'),protocol_version:'v0.9',catalog_id:d.CATALOG,a2ui_messages:b.a2ui_messages,query_bindings:b.query_bindings,generated_by_task_id:t.id,generated_at:p.now()});
+        dashboard.set('active_artifact_id',artifact.id);dashboard.set('last_generation_status','succeeded');dashboard.set('generated_at',p.now());dashboard.set('last_error','');app.save(dashboard);request.set('status','succeeded');request.set('finished_at',p.now());app.save(request);result={artifact_id:artifact.id,artifact_version:artifact.getInt('artifact_version')};
+      }
     }else if(call.getString('tool')==='asoc.open_incident'){
       result=p.triage(app,t,'create',b);
     }else if(call.getString('tool')==='asoc.add_incident_note'){
@@ -111,6 +151,8 @@ routerAdd('POST','/api/asoc/tools/{id}/builtin',(e)=>{
   });return e.json(200,result);
 },$apis.requireAuth());
 // Validate configuration through the API, even when clients bypass the settings UI.
+onRecordCreateRequest((e)=>{require(__hooks+'/platform.js').validateIntakeConfig($app,e.record);e.next();},'intake_configs');
+onRecordUpdateRequest((e)=>{require(__hooks+'/platform.js').validateIntakeConfig($app,e.record);e.next();},'intake_configs');
 onRecordCreateRequest((e)=>{const p=require(__hooks+'/platform.js');p.validateDefinition(p.json(e.record,'definition'));e.next();},'templates');
 onRecordUpdateRequest((e)=>{const p=require(__hooks+'/platform.js');p.validateDefinition(p.json(e.record,'definition'));e.record.set('version',e.record.original().getInt('version')+1);e.next();},'templates');
 onRecordCreateRequest((e)=>{const p=require(__hooks+'/platform.js');const b=p.json(e.record,'value')||{};if(e.record.getString('key')!=='model_defaults'||Object.keys(b).some(k=>!['provider','model'].includes(k)))throw new BadRequestError('Only non-secret model defaults belong in settings.');e.next();},'settings');

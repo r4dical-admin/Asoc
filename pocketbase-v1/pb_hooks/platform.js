@@ -14,6 +14,19 @@ function json(record, field) {
   if (typeof value === 'string') return value ? JSON.parse(value) : null;
   return JSON.parse(JSON.stringify(value || null));
 }
+function canAccessIncident(app, user, incident) {
+  if (!user || user.collection().name !== 'users') return false;
+  if (user.getString('role') === 'admin') return true;
+  const visibility = incident.getString('visibility');
+  if (!visibility || visibility === 'all') return true;
+  const allowed = json(incident, 'allowed_user_ids') || [];
+  return Array.isArray(allowed) && allowed.includes(user.id);
+}
+function incidentForUser(app, user, externalId) {
+  const incident = find(app,'incidents','external_id',externalId);
+  if (!canAccessIncident(app,user,incident)) throw new ForbiddenError('You do not have access to this incident.');
+  return incident;
+}
 function validateDefinition(d) {
   if (!d || Number(d.schema_version) !== 1 || !['triage','analysis','chat','custom'].includes(String(d.role)) || !d.name || !d.instructions) throw new BadRequestError('Playbook requires schema_version: 1, name, role and instructions.');
   if (d.ai_provider && !['gemini','openai','openai-compatible','ollama','mock'].includes(d.ai_provider)) throw new BadRequestError('Unknown AI provider.');
@@ -41,8 +54,9 @@ function receive(app, config, data) {
   if (!data.delivery_key) throw new BadRequestError('A delivery key is required.');
   const existing=app.findRecordsByFilter('intakes','config_id = {:c} && delivery_key = {:d}','',1,0,{c:config.id,d:data.delivery_key});
   if (existing.length) return existing[0];
+  validateIntakeConfig(app,config);
   const intake=make(app,'intakes',{config_id:config.id,source_key:data.source_key || '',delivery_key:data.delivery_key,revision:data.revision || '',payload:data.payload || {},status:'queued',received_at:now()});
-  const task=queue(app,{title:'Triage: '+config.getString('name'),template_id:config.getString('playbook_id'),intake_id:intake.id,context_refs_json:{intake:{id:intake.id,source_key:data.source_key,revision:data.revision,payload:data.payload}}},'intake');
+  const task=queue(app,{title:'Triage: '+config.getString('name'),template_id:config.getString('playbook_id'),intake_id:intake.id,context_refs_json:{resource_ids:(json(config,'config')||{}).resource_ids||[],intake:{id:intake.id,source_key:data.source_key,revision:data.revision,payload:data.payload}}},'intake');
   intake.set('task_id',task.id); app.save(intake); return intake;
 }
 function ownedTask(e,app,id) {
@@ -77,4 +91,13 @@ function triage(app, task, action, data) {
   const decision=make(app,'intake_decisions',{intake_id:intake.id,task_id:task.id,playbook_id:task.getString('template_id'),playbook_version:(json(task,'policy_snapshot')||{}).version||1,outcome,rationale:data.rationale,incident_id:incidentId,result_task_id:resultTaskId,decided_at:now()});
   intake.set('status',outcome);app.save(intake);return decision;
 }
-module.exports={body,now,role,service,make,find,optional,json,validateDefinition,queue,receive,ownedTask,triage};
+function validateIntakeConfig(app,config) {
+  const playbook=optional(app,'templates','external_id',config.getString('playbook_id'));
+  if(!playbook || playbook.getString('role_type')!=='triage' || (json(playbook,'definition')||{}).role!=='triage')throw new BadRequestError('Choose a triage playbook for this intake.');
+  const settings=json(config,'config')||{};
+  if(Array.isArray(settings)||typeof settings!=='object')throw new BadRequestError('Intake configuration must be an object.');
+  const refs=settings.resource_ids||[];
+  if(!Array.isArray(refs)||refs.length>50)throw new BadRequestError('Choose at most 50 resources.');
+  for(const id of refs)if(typeof id!=='string'||!optional(app,'resources','external_id',id))throw new BadRequestError('Intake resource does not exist.');
+}
+module.exports={body,now,role,service,make,find,optional,json,canAccessIncident,incidentForUser,validateDefinition,validateIntakeConfig,queue,receive,ownedTask,triage};

@@ -1,5 +1,10 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import DashboardView from './DashboardView.svelte';
+  import ControlPanel from './ControlPanel.svelte';
+  import ResourceEditor from './ResourceEditor.svelte';
+  import TaskActions from './TaskActions.svelte';
+  import type {ToolCallRecord} from '../lib/pocketbase';
   import type {
     IncidentRecord,
     IncidentSectionRecord,
@@ -13,7 +18,8 @@
     title: string;
     subtitle?: string;
     markdown: string;
-    kind: 'incident' | 'task' | 'resource' | 'chat';
+    kind: 'incident' | 'task' | 'resource' | 'chat' | 'dashboard';
+    dashboardIncidentId?: string;
     editable?: boolean;
     editTarget?: {
       mode: 'file' | 'task-json';
@@ -65,9 +71,14 @@
   export let saveError = '';
   export let taskActionError = '';
   export let canWrite = true;
+  export let approvals:ToolCallRecord[] = [];
+  export let userRole = '';
 
   type DispatchEvents = {
+    signOut: void;
+    refresh: void;
     openIncident: { incident: IncidentRecord; section: string };
+    openDashboard: { incident?: IncidentRecord };
     openTask: { task: TaskRecord };
     openResource: { resource: ResourceRecord };
     openOldIncident: { incident: OldIncidentRecord };
@@ -92,17 +103,21 @@
   const sectionOrder = ['overview', 'timeline', 'slack', 'artifacts'];
   const resourceLabels: Record<string, string> = {
     workflows: 'Templates',
+    playbooks: 'Playbooks',
+    'intake-instructions': 'Intake instructions',
     'knowledge-base': 'Knowledge Base',
     'historic-rcas-sev1s': 'Historic RCAs / SEV1s',
     skills: 'Skills',
     'data-sources': 'Data Sources',
     'mcps-integrations': 'MCPs / Integrations',
-    settings: 'Settings',
-    intakes: 'Intakes'
+    settings: 'Settings reference',
+    intakes: 'Intake reference'
   };
   const workerNames = ['Maya', 'Dave', 'Noa', 'Mike', 'Rina', 'Eli', 'Lia', 'Tom', 'Yael', 'Jon'];
 
   let viewMode: 'rendered' | 'raw' = 'rendered';
+  let taskFilter = '';
+  $: filteredTasks = tasks.filter(task => `${task.title} ${task.status} ${task.incident_id} ${task.template_id} ${task.claimed_by_runner_id} ${approvals.some(a=>a.task_id===task.id)?'approval required':''}`.toLowerCase().includes(taskFilter.toLowerCase()));
   let resourceFilter = '';
   let oldIncidentFilter = '';
   let leftPanelWidth = 300;
@@ -116,7 +131,8 @@
     const haystack = `${resource.category ?? ''} ${resource.title ?? ''} ${resource.id}`.toLowerCase();
     return haystack.includes(resourceFilter.trim().toLowerCase());
   });
-  $: groupedResources = filteredResources.reduce<Record<string, ResourceRecord[]>>((groups, resource) => {
+  $: helpResources = filteredResources.filter(r=>['settings','intakes'].includes(r.category||''));
+  $: groupedResources = filteredResources.filter(r=>!['settings','intakes'].includes(r.category||'')).reduce<Record<string, ResourceRecord[]>>((groups, resource) => {
     const category = resource.category || 'uncategorized';
     groups[category] = [...(groups[category] ?? []), resource];
     return groups;
@@ -333,6 +349,7 @@
         <button type="button" class="tool-button" title="Reset panel widths" on:click={resetPanels}>
           Reset Split
         </button>
+        <button type="button" class="tool-button" on:click={()=>dispatch('signOut')}>Sign out · {userRole}</button>
       </div>
     </div>
   </header>
@@ -351,6 +368,9 @@
           {#if loading}<span>Loading</span>{/if}
         </div>
       </div>
+      <button type="button" class="dashboard-link" class:active={activeTabId === 'dashboard:operations'} on:click={() => dispatch('openDashboard', {})}>
+        <span>Operations dashboard</span><small>Ticket flow · SLA · attention</small>
+      </button>
       {#if error}
         <p class="error">{error}</p>
       {/if}
@@ -381,6 +401,10 @@
               >
                 Queue analysis run
               </button>{/if}
+
+              <button type="button" class="link action-link" on:click={() => dispatch('openDashboard', { incident })}>
+                Incident dashboard
+              </button>
 
               <details class="nested-group">
                 <summary class="group-title nested-heading">
@@ -458,16 +482,18 @@
       </div>
 
       <div class="pane-heading task-heading">
-        <h2>Background Tasks</h2>
+        <h2>Tasks</h2>
       </div>
+      <input class="filter" type="search" bind:value={taskFilter} placeholder="Filter tasks or approval required" aria-label="Filter tasks" />
+      {#if canWrite}<details class="group"><summary class="group-title">Create task</summary><ControlPanel section="tasks" on:refresh={()=>dispatch('refresh')} /></details>{/if}
       <div class="task-list">
-        <details class="group">
+        <details class="group" open={approvals.length > 0 || taskFilter.length > 0}>
           <summary class="group-title">
             <strong>Agent Runs</strong>
-            <em>{tasks.length}</em>
+            <em>{filteredTasks.length}{approvals.length ? ` · ${approvals.length} awaiting approval` : ''}</em>
           </summary>
           <div class="group-files">
-            {#each tasks as task}
+            {#each filteredTasks as task}
               <button
                 class="link task-row"
                 type="button"
@@ -477,6 +503,7 @@
                 <span>
                   <strong>{taskLabel(task)} • {task.claimed_by_runner_id || task.profile_id || task.status || 'agent'}</strong>
                   <small>{task.title ?? 'Untitled task'}</small>
+                  {#if approvals.some(a=>a.task_id===task.id)}<small class="approval-needed">Approval required</small>{/if}
                 </span>
               </button>
             {:else}
@@ -573,6 +600,8 @@
         <div class="view-toggle" aria-label="Markdown view mode">
           {#if activeTab?.kind === 'chat'}
             <span class="chat-status">Ad-hoc chat</span>
+          {:else if activeTab?.kind === 'dashboard'}
+            <span class="chat-status">Live dashboard</span>
           {:else if isEditing}
             <button type="button" class="action-button" on:click={() => dispatch('saveEdit')} disabled={saving}>
               {saving ? 'Saving' : 'Save'}
@@ -602,6 +631,9 @@
           <p class="error inline-error">{taskActionError}</p>
         {/if}
         {#if activeTab}
+          {#if activeTab.kind === 'task' && activeTaskRecord()}
+            {#key activeTab.id}<TaskActions task={activeTaskRecord()!} approvals={approvals.filter(a=>a.task_id===activeTaskRecord()?.id)} {canWrite} on:refresh={()=>dispatch('refresh')} />{/key}
+          {/if}
           {#if activeTab.kind === 'chat' && activeTab.chatSession}
             <div class="chat-workspace">
               <div class="chat-thread">
@@ -628,6 +660,8 @@
                 </button>
               </div>{/if}
             </div>
+          {:else if activeTab.kind === 'dashboard'}
+            {#key activeTab.id}<DashboardView incidentId={activeTab.dashboardIncidentId ?? ''} {canWrite} />{/key}
           {:else if isEditing}
             <textarea
               class="editor"
@@ -681,6 +715,11 @@
     ></div>
 
     <aside class="pane right-pane" class:collapsed={rightPanelCollapsed} aria-label="Resource catalog" aria-hidden={rightPanelCollapsed}>
+      {#each ['health','intakes','settings'] as section}
+        <details class="group"><summary class="group-title">{section === 'health' ? 'Runtime health' : section === 'intakes' ? 'Intakes' : 'Settings'}</summary>
+          <ControlPanel {section} on:refresh={()=>dispatch('refresh')} />
+        </details>
+      {/each}
       <div class="pane-heading">
         <h2>Workers</h2>
       </div>
@@ -740,7 +779,7 @@
                   class:active={activeTabId === `resource:${resource.id}`}
                   on:click={() => dispatch('openResource', { resource })}
                 >
-                  {resource.external_id?.split('/').pop() ?? resource.title ?? resource.id}
+                  {resource.title ?? resource.external_id?.split('/').pop() ?? resource.id}
                 </button>
               {/each}
             </div>
@@ -749,6 +788,16 @@
           <p class="empty">No resources match.</p>
         {/each}
       </div>
+      {#if userRole==='admin'}<details class="group"><summary class="group-title">Add resource</summary><ResourceEditor on:refresh={()=>dispatch('refresh')} /></details>{/if}
+      <details class="group"><summary class="group-title">System Help</summary>
+        {#each ['settings','intakes'] as category}
+          <details class="group"><summary class="group-title">{category==='settings'?'Settings':'Intakes'}</summary>
+            {#each helpResources.filter(r=>r.category===category) as resource (resource.id)}
+              <button type="button" class="link" on:click={()=>dispatch('openResource',{resource})}>{resource.title}</button>
+            {:else}<p class="empty">No matching help topics.</p>{/each}
+          </details>
+        {/each}
+      </details>
     </aside>
   </section>
   <footer class="footer">$ background-jobs --follow correlation memory-analysis ioc-enrichment triage</footer>
@@ -757,6 +806,7 @@
 <svelte:window on:pointermove={handlePointerMove} on:pointerup={stopResize} on:pointercancel={stopResize} />
 
 <style>
+  .approval-needed{color:#f6d365!important}
   :global(body) {
     margin: 0;
     background: #050805;
@@ -1027,6 +1077,23 @@
   .group-files {
     padding: 4px;
   }
+
+  .dashboard-link {
+    width: calc(100% - 12px);
+    margin: 6px;
+    padding: 9px 10px;
+    display: grid;
+    gap: 2px;
+    text-align: left;
+    color: #b7dcb7;
+    background: #0c190d;
+    border: 1px solid #1f3b21;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .dashboard-link small { color: #6fa974; }
+  .dashboard-link:hover, .dashboard-link.active { border-color: #7dff8a; color: #7dff8a; }
 
   .nested-group {
     margin: 4px 0 2px;

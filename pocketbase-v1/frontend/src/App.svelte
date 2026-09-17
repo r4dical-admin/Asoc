@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import WorkspaceShell, { type AdHocChatSession, type WorkspaceTab } from './components/WorkspaceShell.svelte';
-  import ControlPanel from './components/ControlPanel.svelte';
   import {
     listIncidents,
     listIncidentSections,
@@ -25,6 +24,8 @@
     listChatMessages,
     createChat,
     sendChat,
+    listPendingApprovals,
+    type ToolCallRecord,
     type IncidentRecord,
     type IncidentSectionRecord,
     type OldIncidentRecord,
@@ -46,6 +47,7 @@
   let incidents: IncidentRecord[] = [];
   let incidentSections: IncidentSectionRecord[] = [];
   let tasks: TaskRecord[] = [];
+  let approvals: ToolCallRecord[] = [];
   let resources: ResourceRecord[] = [];
   let oldIncidents: OldIncidentRecord[] = [];
   let tabs: WorkspaceTab[] = [];
@@ -58,21 +60,25 @@
   let taskActionError = '';
   let adHocChats: AdHocChatSession[] = [];
   let refreshTimer: number | undefined;
+  let refreshingRecords = false;
 
   async function loadData() {
     if (!user || user.must_change_password) { loading = false; return; }
-    loading = true;
+    if (refreshingRecords) return;
+    refreshingRecords = true;
     error = '';
     try {
-      const [loadedIncidents, loadedSections, loadedTasks, loadedResources, loadedOld, sessions] = await Promise.all([
+      const [loadedIncidents, loadedSections, loadedTasks, loadedResources, loadedOld, sessions, loadedApprovals] = await Promise.all([
         listIncidents(),
         listIncidentSections(),
         listTasks(),
         listResources(),
         listOldIncidents(),
-        listChats()
+        listChats(),
+        listPendingApprovals()
       ]);
       incidents=loadedIncidents;incidentSections=loadedSections;tasks=loadedTasks;resources=loadedResources;oldIncidents=loadedOld;
+      approvals=loadedApprovals;
       adHocChats = await Promise.all(sessions.map(async session => ({id:session.id,title:session.title||'Conversation',subtitle:session.incident_id||'Global chat',preview:'Persisted conversation',incidentId:session.incident_id||undefined,messages:(await listChatMessages(session.id)).map(message=>({id:message.id,author:message.role==='user'?'You':'ASOC',role:message.role||'assistant',body:message.body||'',time:(message.created_at||message.created).slice(11,16)}))})));
       tabs = tabs.map(tab => tab.kind === 'chat' ? {...tab, chatSession: adHocChats.find(chat => `chat:${chat.id}` === tab.id) ?? tab.chatSession} : tab);
       incidents = incidents.sort((a, b) => (a.external_id ?? a.id).localeCompare(b.external_id ?? b.id));
@@ -82,6 +88,7 @@
       error = err instanceof Error ? err.message : 'Failed to load records from PocketBase';
     } finally {
       loading = false;
+      refreshingRecords = false;
     }
   }
 
@@ -232,6 +239,7 @@
 
     const lifecycle = await listTaskLifecycle(activeTaskId).catch(() => []);
     const markdown = lifecycleMarkdown(task, lifecycle);
+    if(tabs.find(tab=>tab.id===activeTabId)?.markdown===markdown)return;
     tabs = tabs.map((tab) => (tab.id === activeTabId ? { ...tab, markdown, subtitle: `${task.incident_id ?? 'Unlinked incident'} · ${task.status ?? 'queued'}` } : tab));
   }
 
@@ -335,6 +343,18 @@
     }
   }
 
+  function openDashboardTab(incident?: IncidentRecord) {
+    const incidentId = incident ? (incident.external_id ?? incident.id) : '';
+    activateOrAddTab({
+      id: incidentId ? `dashboard:incident:${incidentId}` : 'dashboard:operations',
+      title: incidentId ? `${incidentId} Dashboard` : 'Operations Dashboard',
+      subtitle: incidentId ? (incident?.title ?? 'Incident dashboard') : 'Internal ticket operations',
+      kind: 'dashboard',
+      dashboardIncidentId: incidentId,
+      markdown: ''
+    });
+  }
+
   async function sendTaskInput(task: TaskRecord, message: string) {
     const taskId = task.external_id ?? task.id;
     taskActionError = '';
@@ -354,14 +374,15 @@
     }
 
     try {
-      const markdown = await loadMarkdownFromFile(resource, 'body_md_file');
+      const isPlaybook=resource.collectionName==='templates';
+      const markdown = isPlaybook ? String(resource.definition?.instructions||'') : await loadMarkdownFromFile(resource, 'body_md_file');
       activateOrAddTab({
         id,
         title: resource.title ?? resource.id,
         subtitle: resource.category ?? 'Resource',
         kind: 'resource',
         markdown: markdown || `# ${resource.title ?? resource.id}\n\nNo markdown file is attached yet.`,
-        editable: true,
+        editable: !isPlaybook && user?.role==='admin',
         editTarget: {
           mode: 'file',
           collectionName: 'resources',
@@ -497,6 +518,7 @@
     listOAuthProviders().then(value=>oauthProviders=value).catch(()=>{});
     if(user&&!user.must_change_password)loadData(); else loading=false;
     refreshTimer = window.setInterval(async () => {
+      if(document.hidden) return;
       await loadData();
       await refreshActiveTaskTab();
     }, 3000);
@@ -514,9 +536,11 @@
 {:else if user.must_change_password}
   <main class="auth-shell"><form on:submit|preventDefault={replacePassword}><h1>Change password</h1><p>The bootstrap password must be replaced before the workspace opens.</p><label>Current password<input bind:value={password} type="password" required /></label><label>New password<input bind:value={newPassword} type="password" minlength="12" required /></label>{#if authError}<p class="error">{authError}</p>{/if}<button>Save password</button></form></main>
 {:else}
-<button class="logout" on:click={signOut}>Sign out · {user.role}</button>
-<ControlPanel {tasks} on:refresh={loadData}/>
 <WorkspaceShell
+  {approvals}
+  userRole={user.role}
+  on:signOut={signOut}
+  on:refresh={loadData}
   canWrite={user.role !== 'read-only'}
   {loading}
   {error}
@@ -539,6 +563,7 @@
   {saveError}
   {taskActionError}
   on:openIncident={(event) => openIncidentTab(event.detail.incident, event.detail.section)}
+  on:openDashboard={(event) => openDashboardTab(event.detail.incident)}
   on:openTask={(event) => openTaskTab(event.detail.task)}
   on:queueTask={(event) => queueTask(event.detail.incident)}
   on:sendTaskInput={(event) => sendTaskInput(event.detail.task, event.detail.message)}
@@ -560,5 +585,5 @@
 {/if}
 
 <style>
-  .auth-shell{min-height:100vh;display:grid;place-items:center;background:#07101c;color:#e7eef8;font:14px system-ui}.auth-shell form{width:min(380px,calc(100vw - 48px));display:grid;gap:14px;padding:28px;border:1px solid #2a3d55;border-radius:14px;background:#101c2b}.auth-shell h1,.auth-shell p{margin:0}.auth-shell label{display:grid;gap:6px}.auth-shell input{padding:10px;border:1px solid #3a506b;border-radius:7px;background:#081421;color:inherit}.auth-shell button,.logout{padding:10px 14px;border:0;border-radius:7px;background:#5b8cff;color:white;cursor:pointer}.error{color:#ff8d8d}.logout{position:fixed;z-index:30;right:12px;top:8px;padding:6px 10px;font-size:12px}
+  .auth-shell{min-height:100vh;display:grid;place-items:center;background:#07101c;color:#e7eef8;font:14px system-ui}.auth-shell form{width:min(380px,calc(100vw - 48px));display:grid;gap:14px;padding:28px;border:1px solid #2a3d55;border-radius:14px;background:#101c2b}.auth-shell h1,.auth-shell p{margin:0}.auth-shell label{display:grid;gap:6px}.auth-shell input{padding:10px;border:1px solid #3a506b;border-radius:7px;background:#081421;color:inherit}.auth-shell button{padding:10px 14px;border:0;border-radius:7px;background:#5b8cff;color:white;cursor:pointer}.error{color:#ff8d8d}
 </style>

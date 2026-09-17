@@ -1,0 +1,25 @@
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import DashboardComponent from './DashboardComponent.svelte';
+  import { createOrRegenerateIncidentDashboard, getIncidentDashboard, getOperationsDashboard, loadDashboardData, regenerateDashboard, type DashboardResponse, type DashboardData } from '../lib/pocketbase';
+  export let incidentId=''; export let canWrite=true;
+  let response:DashboardResponse={dashboard:null,artifact:null};let data:DashboardData|null=null;let loading=true;let refreshing=false;let error='';let instructions='';let timer:number|undefined;
+  $: components = componentMap(response.artifact?.a2ui_messages ?? []);$: root=components.root;
+  function componentMap(messages:Array<Record<string,any>>){const map:Record<string,Record<string,any>>={};for(const message of messages)for(const item of message.updateComponents?.components??[])map[item.id]=item;return map;}
+  async function load(){error='';try{response=incidentId?await getIncidentDashboard(incidentId):await getOperationsDashboard();if(loading)instructions=response.dashboard?.instructions??'';if(response.dashboard&&response.artifact)await refresh();}catch(err){error=err instanceof Error?err.message:'Dashboard could not be loaded.';}finally{loading=false;}}
+  async function refresh(){if(!response.dashboard)return;refreshing=true;try{data=await loadDashboardData(response.dashboard.id,{days:7,severity:''});}catch(err){error=err instanceof Error?err.message:'Dashboard data could not be refreshed.';}finally{refreshing=false;}}
+  async function regenerate(){if(!canWrite)return;refreshing=true;error='';try{response=response.dashboard?await regenerateDashboard(response.dashboard.id,instructions):await createOrRegenerateIncidentDashboard(incidentId,instructions);if(response.artifact)await refresh();}catch(err){error=err instanceof Error?err.message:'Dashboard generation could not be started.';}finally{refreshing=false;}}
+  onMount(()=>{void load();timer=window.setInterval(()=>{if(!document.hidden)void load();},60000);});onDestroy(()=>timer&&clearInterval(timer));
+</script>
+
+<div class="dashboard-shell">
+  <div class="dashboard-toolbar"><div><span>{incidentId?'Incident dashboard':'Live internal ticket data'}</span>{#if response.artifact?.generated_at}<small>Interface generated {new Date(response.artifact.generated_at).toLocaleString()}</small>{/if}</div><div><button on:click={refresh} disabled={refreshing||!response.artifact}>Refresh data</button>{#if canWrite}<button class="primary" on:click={regenerate} disabled={refreshing}>{response.dashboard?'Regenerate':'Create dashboard'}</button>{/if}</div></div>
+  {#if canWrite}<details class="customize"><summary>Customize with instructions</summary><textarea bind:value={instructions} placeholder="What should this dashboard help you monitor?"></textarea><p>Saved instructions become the durable dashboard intent when you regenerate.</p></details>{/if}
+  {#if error}<p class="error">{error}</p>{/if}
+  {#if loading}<div class="state">Loading dashboard…</div>{:else if !response.dashboard}<div class="state"><h3>No incident dashboard yet</h3><p>Describe what should be monitored, then create it.</p></div>{:else if !response.artifact}<div class="state"><h3>Generating dashboard</h3><p>The task agent is reviewing authorized ticket data. This view will update automatically.</p></div>{:else if root}<DashboardComponent component={root} {components} results={data?.results??{}} />{:else}<div class="state">The saved interface is invalid.</div>{/if}
+  {#if response.dashboard?.last_generation_status==='queued'}<p class="status">A newer interface is being generated. The last valid interface remains available.</p>{/if}
+</div>
+
+<style>
+.dashboard-shell{box-sizing:border-box;max-width:100%;min-width:0;padding:8px;display:grid;align-content:start;gap:14px;background:#070d07;min-height:0;color:#b7dcb7}.dashboard-toolbar{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center}.dashboard-toolbar>div{display:flex;flex-wrap:wrap;min-width:0;gap:8px;align-items:center}.dashboard-toolbar span{font-size:12px;font-weight:700}.dashboard-toolbar small{color:#7cb37c}.dashboard-toolbar button{border:1px solid #2a5a2a;background:#0b150b;border-radius:3px;padding:8px 11px;cursor:pointer;font:inherit;color:#b7dcb7}.dashboard-toolbar .primary{background:#193419;color:#7dff8a;border-color:#193419}.customize{background:#0b150b;border:1px solid #1b3a1b;border-radius:3px;padding:12px}.customize summary{cursor:pointer;font-weight:700;font-size:12px}.customize textarea{box-sizing:border-box;width:100%;min-height:75px;margin-top:12px;border:1px solid #2a5a2a;border-radius:3px;padding:10px;background:#081008;color:#b7dcb7;font:inherit}.customize p,.status{font-size:11px;color:#7cb37c}.state{padding:60px 20px;text-align:center;background:#0b150b;border:1px solid #1b3a1b;border-radius:3px}.error{color:#ff9292;background:#261313;padding:10px;border-radius:3px}@media(max-width:700px){.dashboard-toolbar{align-items:flex-start;gap:10px}.dashboard-toolbar,.dashboard-toolbar>div{flex-direction:column}}
+</style>

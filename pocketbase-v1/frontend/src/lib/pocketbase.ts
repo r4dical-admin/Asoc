@@ -45,6 +45,10 @@ export type ChatSessionRecord = RecordModel & { title?: string; incident_id?: st
 export type ChatMessageRecord = RecordModel & { session_id?: string; task_id?: string; role?: 'user'|'assistant'|'system'; body?: string; created_at?: string };
 export type ToolCallRecord = RecordModel & { task_id?: string; tool?: string; arguments?: Record<string, unknown>; status?: string };
 export type TemplateRecord = RecordModel & { external_id?: string; name?: string; role_type?: string; definition?: Record<string, unknown>; version?: number };
+export type DashboardRecord = RecordModel & { external_id?: string; name?: string; scope?: 'operations'|'incident'; incident_id?: string; instructions?: string; config_revision?: number; last_generation_status?: string; last_error?: string; generated_at?: string };
+export type DashboardArtifact = { id:string; protocol_version:string; catalog_id:string; a2ui_messages:Array<Record<string,unknown>>; query_bindings:Array<{id:string;metric:string;limit?:number}>; generated_at?:string };
+export type DashboardResponse = { dashboard:DashboardRecord|null; artifact:DashboardArtifact|null };
+export type DashboardData = { generated_at:string; filters:{days:number;severity:string}; results:Record<string,unknown> };
 
 export type TaskLifecycleRecord = RecordModel & {
   external_id?: string;
@@ -120,6 +124,11 @@ export async function saveModelDefaults(provider:string,model:string){ const lis
 export async function listArtifacts(task_id:string){ return pb.collection('artifacts').getFullList({filter:pb.filter('task_id={:id}',{id:task_id}),sort:'created_at'}); }
 export async function saveIntakeConfig(data:Record<string,unknown>,id?:string){ return id?pb.collection('intake_configs').update(id,data):pb.collection('intake_configs').create(data); }
 export async function savePlaybookDefinition(id:string,definition:Record<string,unknown>){ return pb.collection('templates').update(id,{definition}); }
+export async function getOperationsDashboard(){ return pb.send('/api/asoc/dashboards/operations',{method:'GET'}) as Promise<DashboardResponse>; }
+export async function getIncidentDashboard(incidentId:string){ return pb.send(`/api/asoc/incidents/${encodeURIComponent(incidentId)}/dashboard`,{method:'GET'}) as Promise<DashboardResponse>; }
+export async function regenerateDashboard(id:string,instructions=''){ return pb.send(`/api/asoc/dashboards/${id}/regenerate`,{method:'POST',body:{instructions}}) as Promise<DashboardResponse>; }
+export async function createOrRegenerateIncidentDashboard(incidentId:string,instructions=''){ return pb.send(`/api/asoc/incidents/${encodeURIComponent(incidentId)}/dashboard`,{method:'POST',body:{instructions}}) as Promise<DashboardResponse>; }
+export async function loadDashboardData(id:string,filters:{days:number;severity:string}){ return pb.send(`/api/asoc/dashboards/${id}/data`,{method:'POST',body:filters}) as Promise<DashboardData>; }
 
 export async function listTaskLifecycle(taskExternalId: string): Promise<TaskLifecycleRecord[]> {
   return pb.collection('task_lifecycle').getFullList<TaskLifecycleRecord>({
@@ -129,7 +138,8 @@ export async function listTaskLifecycle(taskExternalId: string): Promise<TaskLif
 }
 
 export async function listResources(): Promise<ResourceRecord[]> {
-  return pb.collection('resources').getFullList<ResourceRecord>({ sort: 'category,title' });
+  const [resources,playbooks]=await Promise.all([pb.collection('resources').getFullList<ResourceRecord>({sort:'category,title'}),listTemplates()]);
+  return [...resources,...playbooks.map(p=>({...p,title:p.name,category:'playbooks',body_md_file:p.definition_md_file}))];
 }
 
 export async function listOldIncidents(): Promise<OldIncidentRecord[]> {

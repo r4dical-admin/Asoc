@@ -12,8 +12,33 @@ if (auth.record.must_change_password) {
   auth = await request('/api/collections/users/auth-with-password',{method:'POST',headers:json,body:JSON.stringify({identity:'admin',password:'asoc-smoke-password-2026'})});
 }
 const headers={...json,Authorization:auth.token};
+// Resource creation and intake routing use the same API paths as the UI.
+const suffix=Date.now();
+const resourceForm=new FormData();
+resourceForm.set('external_id',`intake-instructions/smoke-${suffix}.md`);
+resourceForm.set('title','Smoke intake instructions');resourceForm.set('category','intake-instructions');
+resourceForm.set('body_md_file',new Blob(['Investigate the report and record the triage rationale.'],{type:'text/markdown'}),'instructions.md');
+const resource=await request('/api/collections/resources/records',{method:'POST',headers:{Authorization:auth.token},body:resourceForm});
+const playbookForm=new FormData();
+playbookForm.set('external_id',`PB-SMOKE-${suffix}`);playbookForm.set('name','Smoke triage');playbookForm.set('role_type','triage');playbookForm.set('version','1');
+playbookForm.set('definition',JSON.stringify({schema_version:1,name:'Smoke triage',role:'triage',instructions:'Review each intake.',required_context:[],outputs:['markdown'],max_runtime_sec:600,mcp_tool_policy:{}}));
+playbookForm.set('definition_md_file',new Blob(['Review each intake.'],{type:'text/markdown'}),'instructions.md');
+const playbook=await request('/api/collections/templates/records',{method:'POST',headers:{Authorization:auth.token},body:playbookForm});
+const routedConfig=await request('/api/collections/intake_configs/records',{method:'POST',headers,body:JSON.stringify({name:'Smoke routing',kind:'manual',enabled:true,playbook_id:playbook.external_id,config:{resource_ids:[resource.external_id]}})});
+const invalidRouting=await fetch(base+'/api/collections/intake_configs/records/'+routedConfig.id,{method:'PATCH',headers,body:JSON.stringify({playbook_id:'TPL-PERIODIC'})});
+if(invalidRouting.status!==400)throw new Error('Non-triage playbook accepted for intake routing.');
+const routedPayload={config_id:routedConfig.id,delivery_key:`routing-${suffix}`,payload:{summary:'Routing check'}};
+const routedIntake=await request('/api/asoc/intakes',{method:'POST',headers,body:JSON.stringify(routedPayload)});
+const routedTask=await request('/api/collections/tasks/records/'+routedIntake.task_id,{headers});
+if(routedTask.template_id!==playbook.external_id||routedTask.role_type!=='triage'||routedTask.context_refs_json?.resource_ids?.[0]!==resource.external_id)throw new Error('Intake did not queue its configured triage playbook and resources.');
+const routedDuplicate=await request('/api/asoc/intakes',{method:'POST',headers,body:JSON.stringify(routedPayload)});
+if(routedDuplicate.task_id!==routedIntake.task_id)throw new Error('Duplicate intake queued another triage task.');
+const dashboard=await request('/api/asoc/dashboards/operations',{headers});
+if(dashboard.artifact?.protocol_version!=='v0.9'||!Array.isArray(dashboard.artifact?.a2ui_messages))throw new Error('Seeded A2UI operations dashboard is unavailable.');
+const dashboardData=await request(`/api/asoc/dashboards/${dashboard.dashboard.id}/data`,{method:'POST',headers,body:JSON.stringify({days:7,severity:''})});
+if(!dashboardData.results?.operations_flow||dashboardData.results?.restricted_incidents?.total!==0)throw new Error('Dashboard queries or restricted incident summary are invalid.');
 const configs=await request('/api/collections/intake_configs/records',{headers});
-const manual=configs.items.find(item=>item.kind==='manual');
+const manual=configs.items.find(item=>item.kind==='manual'&&item.playbook_id==='TPL-TRIAGE');
 const payload={config_id:manual.id,delivery_key:'smoke-'+Date.now(),payload:{summary:'Smoke test'}};
 const first=await request('/api/asoc/intakes',{method:'POST',headers,body:JSON.stringify(payload)});
 const duplicate=await request('/api/asoc/intakes',{method:'POST',headers,body:JSON.stringify(payload)});
@@ -36,4 +61,4 @@ if(duplicateClaim.status!==400)throw new Error('Atomic claim accepted a second c
 await request(`/api/asoc/tasks/${queued.id}/cancel`,{method:'POST',headers});
 const canceled=await request(`/api/asoc/tasks/${queued.id}/progress`,{method:'POST',headers:serviceHeaders,body:JSON.stringify({status:'canceled'})});
 if(canceled.status!=='canceled')throw new Error('Running cancellation was not finalized.');
-console.log('API smoke passed: auth, first-login change, intake idempotency, atomic triage action, persisted chat, atomic claim, cancellation.');
+console.log('API smoke passed: auth, first-login change, A2UI dashboard queries, intake idempotency, atomic triage action, persisted chat, atomic claim, cancellation.');

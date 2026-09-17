@@ -93,6 +93,7 @@ async function execute(task){
     await a.writes;
     if(a.stopError)throw a.stopError;if(a.delegateError)throw a.delegateError;if(a.streamError)throw a.streamError;if(exit!==0)throw new Error('Delegate exited with code '+exit);
     if(task.intake_id){const decisions=await pb.collection('intake_decisions').getList(1,1,{filter:pb.filter('intake_id={:id}',{id:task.intake_id})});if(!decisions.items.length)throw Object.assign(new Error('Triage ended without recording a decision.'),{permanent:true});}
+    if(task.context_refs_json?.generation_request_id){const request=await pb.collection('dashboard_generation_requests').getOne(task.context_refs_json.generation_request_id);if(request.status!=='succeeded')throw Object.assign(new Error('Dashboard generation ended without publishing a valid artifact.'),{permanent:true});}
   }catch(err){error=err;}
   finally{
     clearTimeout(timer);clearInterval(poll);a.abort.abort();
@@ -100,6 +101,13 @@ async function execute(task){
       await a.writes;
       await artifact(task,'raw_output',a.raw);await artifact(task,'result',{markdown:a.text,error:error?redact(error.message):null});
       const state=error?retryState(task,error):{status:'succeeded'};
+      if(task.context_refs_json?.generation_request_id&&state.status!=='queued'){
+        const request=await pb.collection('dashboard_generation_requests').getOne(task.context_refs_json.generation_request_id).catch(()=>null);
+        if(request&&request.status!=='succeeded'){
+          await pb.collection('dashboard_generation_requests').update(request.id,{status:'failed',finished_at:new Date().toISOString()}).catch(()=>{});
+          await pb.collection('dashboards').update(task.context_refs_json.dashboard_id,{last_generation_status:'failed',last_error:redact(error?.message||'Dashboard was not published.')}).catch(()=>{});
+        }
+      }
       await progress(task,{...state,finished_at:state.status==='queued'?'':new Date().toISOString(),result_summary_json:{markdown:redact(a.text),error:error?redact(error.message):null}});
       await event(task,state.status,error?redact(error.message):'Task completed');
     }catch(err){console.error('Finalization failed; lease recovery will handle the task:',redact(err.message));}
