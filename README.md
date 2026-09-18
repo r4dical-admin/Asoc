@@ -8,6 +8,8 @@ Asoc is built around AI agents as operational workers. People define intent, con
 
 ![Asoc incident workspace](docs/images/asoc-incident-workspace.png)
 
+Screenshots below show the current application with local demo data. The authoring example uses the explicitly labeled mock runner; real model execution requires a configured provider.
+
 ## Agentic by design
 
 Asoc treats operational procedures as material an agent can understand and execute, rather than hard-coding every workflow into application logic:
@@ -31,6 +33,8 @@ This structure makes Asoc a control plane for agent work: intakes create tasks, 
 - Receive reports, alerts, GitHub pull requests, Jira issues, and scheduled hunts through configurable intake channels.
 - Triage new signals against existing incidents before creating duplicate work.
 - Run investigation and response playbooks as durable background tasks.
+- Follow ticket intake, triage, playbook execution, closure, and configured SLAs in a playbook-driven dashboard.
+- Draft playbooks, skills, and incident overviews with an assistant, then review and explicitly save or replace the content.
 - Follow model output as it streams and retain the transcript, evidence, decisions, and generated artifacts.
 - Control every MCP tool at the playbook level with `deny`, `allow`, or `require approval`.
 - Keep reusable knowledge, data-source guides, past incident reviews, skills, and integrations close to the investigation.
@@ -61,6 +65,16 @@ This separates transport deduplication from the judgment of whether two signals 
 
 A task is a durable unit of agent work. It records the selected playbook, model, state, transcript, tool requests, and artifacts. Independent runners claim queued tasks, stream progress back to the workspace, and recover work safely after interruption.
 
+The left navigation shows real runner and agent-profile names, status, workload, and pending approval counts. Open a worker or an incident's **Work and approvals** tab to inspect its tasks. Approve or deny requested actions from the task tab.
+
+![Workers, status, and workload](docs/images/asoc-task-activity.png)
+
+### Dashboards
+
+The operations dashboard focuses on the ticket funnel and attention items. Dashboard playbooks generate a stored A2UI interface whose bindings query current, authorized data. Incident dashboards can focus on the questions an analyst wants to track. Inaccessible incidents appear only as counts by severity.
+
+![Operations dashboard](docs/images/asoc-operations-dashboard.png)
+
 ### Playbooks and tools
 
 Playbooks are stored as Markdown and define the job, required context, expected outputs, model settings, timeout, and available MCP tools. Each tool receives one of three policies:
@@ -71,11 +85,15 @@ Playbooks are stored as Markdown and define the job, required context, expected 
 | `allow` | The agent may invoke the tool during the task. |
 | `require approval` | The exact tool call and arguments pause for an admin or analyst to review. Approval applies only to the current task or session. |
 
-![Task activity and approvals](docs/images/asoc-task-activity.png)
+Create and edit playbooks through structured fields for role, model, runtime, required context, outputs, and tool permissions, with Markdown instructions and an advanced JSON editor. The authoring assistant receives a bounded snapshot of the non-secret configuration, including schemas, playbooks, resource metadata, profiles, models, intake routes, and discovered tools. Its proposed draft is validated before it can be accepted into the form; saving remains an explicit action.
+
+![Structured playbook editing with the authoring assistant](docs/images/asoc-playbook-authoring.png)
 
 ### Resources
 
-Resources provide the operational memory around an incident: response playbooks, knowledge articles, historic RCAs, skills, data-source notes, and MCP integration definitions. Analysts can open them beside live incident material and agent output. Agents receive only the resources selected for their task context.
+Resources provide the operational memory around an incident: knowledge articles, historic RCAs, skills, intake instructions, and data-source notes. **Templates** and executable **Playbooks** have separate sections. Connection settings, environment-variable references, availability, discovered tools, and integration reference documents live under **Settings → MCPs / Integrations**.
+
+An incident overview can also be regenerated from current sections, notes, task results, and relevant artifacts. The analyst reviews the proposed Markdown before replacing the overview. A draft cannot overwrite an overview that changed while it was being prepared.
 
 ## Typical workflows
 
@@ -111,15 +129,15 @@ Selected GitHub repositories and Jira Cloud projects can feed their changes into
 
 The application uses three connected areas:
 
-- **Left:** active incidents and background tasks.
-- **Center:** a tabbed workspace for incident views, resources, conversations, and task output.
-- **Right:** playbooks, knowledge, previous incident reviews, skills, data sources, integrations, and intakes.
+- **Left:** active incidents, conversations, and workers with aggregate workload and approval counts.
+- **Center:** tabs for incident views, dashboards, resources, authoring, task output, and full metadata tables.
+- **Right:** runtime health, intakes, settings, resources, templates, playbooks, and System Help.
 
-The Control Center provides task creation and filtering, intake review, approval requests, runtime health, model defaults, integrations, playbooks, and user administration. Roles are `admin`, `analyst`, and `read-only`.
+Section arrows open full tabs. Manual intake has its own triage playbook, and each intake configuration can select a compatible triage playbook and supporting resources. Settings and intake reference material are grouped under System Help. Roles are `admin`, `analyst`, and `read-only`.
 
 ## Current status
 
-The current v0.1 implementation includes the PocketBase-backed workspace, durable tasks and chat, real Gemini execution, OpenAI-compatible and Ollama adapters, intake deduplication, GitHub and Jira intake handlers, and playbook-level MCP approval enforcement.
+The current v0.1 implementation includes the PocketBase-backed workspace, durable tasks and chat, Gemini execution, OpenAI-compatible and Ollama adapters, intake routing and deduplication, GitHub and Jira intake handlers, playbook-level MCP approval enforcement, generated dashboards, worker catalogs, and assisted authoring with explicit draft acceptance.
 
 Some integrations still require deployment credentials and end-to-end acceptance. The current checklist is maintained in [TODO.md](TODO.md).
 

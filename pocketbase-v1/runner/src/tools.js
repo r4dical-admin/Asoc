@@ -13,16 +13,27 @@ export const builtinTools=[
 ];
 export async function connectTools(configs,env=process.env){
   const tools=[...builtinTools];const clients=new Map();
+  try {
   for(const c of configs){
     if(c.kind!=='mcp'||!c.enabled)continue;
     const cfg=c.config;const client=new Client({name:'asoc-runner',version:'1.0.0'});
     const token=cfg.token_env?env[cfg.token_env]:null;
     if(cfg.token_env&&!token)throw new Error('Missing MCP environment secret '+cfg.token_env);
-    await client.connect(new StreamableHTTPClientTransport(new URL(cfg.url),{requestInit:{headers:token?{Authorization:'Bearer '+token}:{}}}));
     clients.set(c.id,client);
-    const list=await client.listTools();for(const t of list.tools){tools.push({...t,name:c.id+'.'+t.name,connection_id:c.id,remote_name:t.name});}
+    await client.connect(new StreamableHTTPClientTransport(new URL(cfg.url),{requestInit:{headers:token?{Authorization:'Bearer '+token}:{}},fetch:(url,options)=>fetch(url,{...options,signal:AbortSignal.any([...(options?.signal?[options.signal]:[]),AbortSignal.timeout(15000)])})}),{timeout:15000});
+    let cursor;do{const list=await client.listTools(cursor?{cursor}:{},{timeout:15000});for(const t of list.tools){tools.push({...t,name:c.id+'.'+t.name,connection_id:c.id,remote_name:t.name});}cursor=list.nextCursor;}while(cursor&&tools.length<250);
   }
   return {tools,clients};
+  }catch(error){await Promise.allSettled([...clients.values()].map(c=>c.close()));throw error;}
+}
+export async function discoverConnections(configs,report,connector=connectTools){
+ for(const config of configs.filter(c=>c.kind==='mcp'&&c.enabled)){
+  let connection,result;
+  try{connection=await connector([config]);result={status:'available',tools:connection.tools.filter(t=>t.connection_id===config.id).map(t=>({name:t.name}))};}
+  catch{result={status:'unavailable',tools:[]};}
+  finally{if(connection)await Promise.allSettled([...connection.clients.values()].map(c=>c.close()));}
+  await report(config.id,result);
+ }
 }
 export function modelTools(tools,policy,profile){
   const names={};const definitions=[];

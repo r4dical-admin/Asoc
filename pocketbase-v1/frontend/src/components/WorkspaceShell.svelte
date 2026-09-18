@@ -4,6 +4,8 @@
   import ControlPanel from './ControlPanel.svelte';
   import ResourceEditor from './ResourceEditor.svelte';
   import CatalogView from './CatalogView.svelte';
+  import WorkersPanel from './WorkersPanel.svelte';
+  import AuthoringChat from './AuthoringChat.svelte';
   import TaskActions from './TaskActions.svelte';
   import type {ToolCallRecord} from '../lib/pocketbase';
   import type {
@@ -19,7 +21,8 @@
     title: string;
     subtitle?: string;
     markdown: string;
-    kind: 'incident' | 'task' | 'resource' | 'chat' | 'dashboard' | 'catalog';
+    kind: 'incident' | 'task' | 'resource' | 'chat' | 'dashboard' | 'catalog' | 'editor';
+    resourceRecord?: ResourceRecord;
     catalogSection?:string;
     catalogCategory?:string;
     dashboardIncidentId?: string;
@@ -84,6 +87,9 @@
     openDashboard: { incident?: IncidentRecord };
     openTask: { task: TaskRecord };
     openResource: { resource: ResourceRecord };
+    editResource: {resource:ResourceRecord};
+    overviewApplied: {record:any};
+    resourceSaved: {record:any};
     openCatalog: {section:string;category?:string;title:string};
     openOldIncident: { incident: OldIncidentRecord };
     openAdHocChat: { chat: AdHocChatSession };
@@ -117,11 +123,8 @@
     settings: 'Settings reference',
     intakes: 'Intake reference'
   };
-  const workerNames = ['Maya', 'Dave', 'Noa', 'Mike', 'Rina', 'Eli', 'Lia', 'Tom', 'Yael', 'Jon'];
 
   let viewMode: 'rendered' | 'raw' = 'rendered';
-  let taskFilter = '';
-  $: filteredTasks = tasks.filter(task => `${task.title} ${task.status} ${task.incident_id} ${task.template_id} ${task.claimed_by_runner_id} ${approvals.some(a=>a.task_id===task.id)?'approval required':''}`.toLowerCase().includes(taskFilter.toLowerCase()));
   let resourceFilter = '';
   let oldIncidentFilter = '';
   let leftPanelWidth = 300;
@@ -136,7 +139,7 @@
     return haystack.includes(resourceFilter.trim().toLowerCase());
   });
   $: helpResources = filteredResources.filter(r=>['settings','intakes'].includes(r.category||''));
-  $: groupedResources = filteredResources.filter(r=>!['settings','intakes'].includes(r.category||'')).reduce<Record<string, ResourceRecord[]>>((groups, resource) => {
+  $: groupedResources = filteredResources.filter(r=>!['settings','intakes','mcps-integrations'].includes(r.category||'')).reduce<Record<string, ResourceRecord[]>>((groups, resource) => {
     const category = resource.category || 'uncategorized';
     groups[category] = [...(groups[category] ?? []), resource];
     return groups;
@@ -145,11 +148,6 @@
     const haystack = `${incident.external_id ?? incident.id} ${incident.title ?? ''} ${incident.severity ?? ''}`.toLowerCase();
     return haystack.includes(oldIncidentFilter.trim().toLowerCase());
   });
-  $: workerGroups = tasks.reduce<Record<string, TaskRecord[]>>((groups, task) => {
-    const key = task.claimed_by_runner_id || task.profile_id || task.role_type || 'unassigned';
-    groups[key] = [...(groups[key] ?? []), task];
-    return groups;
-  }, {});
   $: if (activeTab?.kind !== 'chat') {
     chatDraft = '';
   }
@@ -165,16 +163,6 @@
     return incident.external_id ?? incident.id;
   }
 
-  function taskLabel(task: TaskRecord) {
-    return task.external_id ?? task.id;
-  }
-
-  function taskTone(status?: string) {
-    if (status === 'failed' || status === 'canceled') return 'danger';
-    if (status === 'running' || status === 'claimed') return 'active';
-    if (status === 'succeeded') return 'done';
-    return 'queued';
-  }
   function tabGroup(tab: WorkspaceTab) {
     const match = tab.id.match(/^(?:incident|chat):([^:]+)/);
     return match?.[1]?.startsWith('INC-') ? match[1] : tab.kind;
@@ -221,10 +209,6 @@
       : `chat:${chat.id}`;
   }
 
-  function workerLabel(workerId: string) {
-    const hash = [...workerId].reduce((value, char) => value + char.charCodeAt(0), 0);
-    return workerNames[hash % workerNames.length];
-  }
 
   function resourceGroupLabel(category: string) {
     return resourceLabels[category] ?? category;
@@ -409,6 +393,7 @@
               <button type="button" class="link action-link" on:click={() => dispatch('openDashboard', { incident })}>
                 Incident dashboard
               </button>
+              <button type="button" class="link" on:click={()=>dispatch('openCatalog',{section:'incident-tasks',category:incidentLabel(incident),title:incidentLabel(incident)+' work'})}>Work and approvals</button>
 
               <details class="nested-group">
                 <summary class="group-title nested-heading">
@@ -486,36 +471,11 @@
       </div>
 
       <div class="pane-heading task-heading">
-        <h2>Tasks</h2>
+        <h2>Workers</h2>
+        <button class="section-open" aria-label="Open Workers in a tab" on:click={()=>dispatch('openCatalog',{section:'workers',title:'Workers'})}>↗</button>
       </div>
-      <input class="filter" type="search" bind:value={taskFilter} placeholder="Filter tasks or approval required" aria-label="Filter tasks" />
       {#if canWrite}<details class="group"><summary class="group-title">Create task</summary><ControlPanel section="tasks" on:refresh={()=>dispatch('refresh')} /></details>{/if}
-      <div class="task-list">
-        <details class="group" open={approvals.length > 0 || taskFilter.length > 0}>
-          <summary class="group-title">
-            <strong>Agent Runs</strong>
-            <em>{filteredTasks.length}{approvals.length ? ` · ${approvals.length} awaiting approval` : ''}</em>
-          </summary>
-          <div class="group-files">
-            {#each filteredTasks as task}
-              <button
-                class="link task-row"
-                type="button"
-                on:click={() => dispatch('openTask', { task })}
-              >
-                <span class={`task-dot ${taskTone(task.status)}`} aria-hidden="true"></span>
-                <span>
-                  <strong>{taskLabel(task)} • {task.claimed_by_runner_id || task.profile_id || task.status || 'agent'}</strong>
-                  <small>{task.title ?? 'Untitled task'}</small>
-                  {#if approvals.some(a=>a.task_id===task.id)}<small class="approval-needed">Approval required</small>{/if}
-                </span>
-              </button>
-            {:else}
-              <p class="empty">No runner tasks queued.</p>
-            {/each}
-          </div>
-        </details>
-      </div>
+      <WorkersPanel {tasks} {approvals} on:openCatalog />
 
       <div class="pane-heading task-heading">
         <h2>Old Incidents</h2>
@@ -606,6 +566,8 @@
             <span class="chat-status">Ad-hoc chat</span>
           {:else if activeTab?.kind === 'dashboard'}
             <span class="chat-status">Live dashboard</span>
+          {:else if activeTab?.kind === 'editor'}
+            <span class="chat-status">Draft editor</span>
           {:else if activeTab?.kind === 'catalog'}
             <span class="chat-status">Catalog table</span>
           {:else if isEditing}
@@ -625,6 +587,7 @@
             {#if activeTab?.editable && canWrite}
               <button type="button" class="action-button" on:click={() => dispatch('startEdit')}>Edit</button>
             {/if}
+            {#if activeTab?.kind==='resource' && activeTab.resourceRecord && userRole==='admin'}<button type="button" class="action-button" on:click={()=>dispatch('editResource',{resource:activeTab!.resourceRecord!})}>Edit with assistant</button>{/if}
           {/if}
         </div>
       </div>
@@ -669,7 +632,9 @@
           {:else if activeTab.kind === 'dashboard'}
             {#key activeTab.id}<DashboardView incidentId={activeTab.dashboardIncidentId ?? ''} {canWrite} />{/key}
           {:else if activeTab.kind === 'catalog'}
-            {#key activeTab.id}<CatalogView section={activeTab.catalogSection||''} category={activeTab.catalogCategory||''} on:openResource on:openTask on:refresh />{/key}
+            {#key activeTab.id}<CatalogView section={activeTab.catalogSection||''} category={activeTab.catalogCategory||''} on:openResource on:openTask on:openCatalog on:refresh />{/key}
+          {:else if activeTab.kind==='editor'}
+            {#key activeTab.id}<ResourceEditor record={activeTab.resourceRecord} on:saved={e=>dispatch('resourceSaved',{record:e.detail})} on:refresh />{/key}
           {:else if isEditing}
             <textarea
               class="editor"
@@ -678,6 +643,9 @@
               spellcheck="false"
             ></textarea>
           {:else}
+            {#if canWrite&&activeTab.kind==='incident'&&activeTab.id.endsWith(':overview')&&activeTab.editTarget}
+              {#key activeTab.id}<details class="overview-draft"><summary>Regenerate overview</summary><AuthoringChat kind="overview" targetId={activeTab.editTarget.recordId} on:applied={e=>dispatch('overviewApplied',{record:e.detail})} /></details>{/key}
+            {/if}
             {#if viewMode === 'rendered'}
               <div class="rendered">{@html activeHtml}</div>
             {:else}
@@ -726,37 +694,9 @@
       {#each ['health','intakes','settings'] as section}
         <details class="group"><summary class="group-title">{section === 'health' ? 'Runtime health' : section === 'intakes' ? 'Intakes' : 'Settings'}<button class="section-open" aria-label={`Open ${section} in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section,title:section==='health'?'Runtime health':section==='intakes'?'Intakes':'Settings'})}>↗</button></summary>
           <ControlPanel {section} on:refresh={()=>dispatch('refresh')} />
+          {#if section==='settings' && userRole==='admin'}<button type="button" class="link" on:click={()=>dispatch('openCatalog',{section:'integrations',title:'MCPs / Integrations'})}>MCPs / Integrations ↗</button>{/if}
         </details>
       {/each}
-      <div class="pane-heading">
-        <h2>Workers</h2>
-        <button class="section-open" aria-label="Open Workers in a tab" on:click={()=>dispatch('openCatalog',{section:'workers',title:'Workers'})}>↗</button>
-      </div>
-      <div class="resource-groups">
-        {#each Object.entries(workerGroups) as [workerId, workerTasks]}
-          <details class="group resource-group">
-            <summary class="group-title">
-              <strong>{workerLabel(workerId)}</strong>
-              <em>{workerTasks.length}</em>
-              <button class="section-open" aria-label={`Open ${workerLabel(workerId)} tasks in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'worker',category:workerId,title:workerLabel(workerId)+' tasks'})}>↗</button>
-            </summary>
-            <div class="group-files">
-              {#each workerTasks as task}
-                <button
-                  type="button"
-                  class="link chat-link"
-                  on:click={() => dispatch('openTask', { task })}
-                >
-                  <span class="chat-link-title">{task.external_id ?? task.id}</span>
-                  <small>{task.title ?? task.status ?? 'Task'}</small>
-                </button>
-              {/each}
-            </div>
-          </details>
-        {:else}
-          <p class="empty">No workers active.</p>
-        {/each}
-      </div>
 
       <div class="pane-heading task-heading">
         <h2>Resources</h2>
@@ -800,7 +740,7 @@
           <p class="empty">No resources match.</p>
         {/each}
       </div>
-      {#if userRole==='admin'}<details class="group"><summary class="group-title">Add resource<button class="section-open" aria-label="Open Add resource in a tab" on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'add',title:'Add resource'})}>↗</button></summary><ResourceEditor on:refresh={()=>dispatch('refresh')} /></details>{/if}
+      {#if userRole==='admin'}<button type="button" class="link" on:click={()=>dispatch('openCatalog',{section:'add',title:'Add resource'})}>Add resource ↗</button>{/if}
       <details class="group"><summary class="group-title">System Help<button class="section-open" aria-label="Open System Help in a tab" on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'help',title:'System Help'})}>↗</button></summary>
         {#each ['settings','intakes'] as category}
           <details class="group"><summary class="group-title">{category==='settings'?'Settings':'Intakes'}<button class="section-open" aria-label={`Open ${category} help in a tab`} on:click|preventDefault|stopPropagation={()=>dispatch('openCatalog',{section:'resources',category,title:(category==='settings'?'Settings':'Intakes')+' help'})}>↗</button></summary>
@@ -1025,9 +965,10 @@
   }
 
   .group-title {
+    box-sizing: border-box;
     width: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) fit-content(72px);
+    grid-template-columns: minmax(0, 1fr) max-content;
     gap: 8px;
     align-items: center;
     background: linear-gradient(180deg, #121d12 0%, #0d150d 100%);
@@ -1065,8 +1006,7 @@
   .severity-pill {
     justify-self: start;
     max-width: 72px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
     white-space: nowrap;
     padding-left: 0;
   }
@@ -1193,19 +1133,12 @@
     padding: 4px 6px;
   }
 
-  .task-row strong,
-  .task-row small {
+  .task-row strong {
     display: block;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .task-row small {
-    color: #7cb37c;
-    margin-top: 2px;
-    font-size: 9px;
   }
 
   .task-dot {

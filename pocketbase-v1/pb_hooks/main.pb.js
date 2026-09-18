@@ -30,11 +30,11 @@ onRecordAuthWithOAuth2Request((e)=>{
 },'users');
 routerAdd('POST','/api/asoc/tasks',(e)=>{
   const p=require(__hooks+'/platform.js');p.role(e,['admin','analyst']);let result;
-  $app.runInTransaction(app=>{let b=p.body(e);if(b.definition_id){const record=app.findRecordById('task_definitions',b.definition_id);b=Object.assign({},p.json(record,'definition'),b);}result=p.queue(app,b,e.auth.id);});return e.json(200,result);
+  $app.runInTransaction(app=>{let b=p.body(e);if(b.definition_id){const record=app.findRecordById('task_definitions',b.definition_id);b=Object.assign({},p.json(record,'definition'),b);}if(b.incident_id)p.incidentForUser(app,e.auth,b.incident_id);if(b.template_id==='TPL-AUTHORING'||b.context_refs_json?.authoring)throw new BadRequestError('Use the authoring draft endpoint.');result=p.queue(app,b,e.auth.id);});return e.json(200,result);
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/tasks/{id}/cancel',(e)=>{
   const p=require(__hooks+'/platform.js');p.role(e,['admin','analyst']);let r;
-  $app.runInTransaction(app=>{r=app.findRecordById('tasks',e.request.pathValue('id'));if(['queued','claimed','running'].includes(r.getString('status'))){r.set('cancel_requested_at',p.now());if(r.getString('status')==='queued')r.set('status','canceled');app.save(r);}});return e.json(200,r);
+  $app.runInTransaction(app=>{r=p.taskForUser(app,e.auth,app.findRecordById('tasks',e.request.pathValue('id')));if(['queued','claimed','running'].includes(r.getString('status'))){r.set('cancel_requested_at',p.now());if(r.getString('status')==='queued')r.set('status','canceled');app.save(r);}});return e.json(200,r);
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/tasks/{id}/claim',(e)=>{
   const p=require(__hooks+'/platform.js');p.service(e);let r;
@@ -112,7 +112,7 @@ routerAdd('POST','/api/asoc/tools/request',(e)=>{
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/tools/{id}/approve',(e)=>{
   const p=require(__hooks+'/platform.js');p.role(e,['admin','analyst']);let r;
-  $app.runInTransaction(app=>{r=app.findRecordById('tool_calls',e.request.pathValue('id'));const t=app.findRecordById('tasks',r.getString('task_id'));if(r.getString('status')!=='pending'||!['claimed','running'].includes(t.getString('status'))||t.getInt('attempt_no')!==r.getInt('attempt_no'))throw new BadRequestError('This request is no longer pending.');r.set('status',p.body(e).approve===true?'approved':'denied');r.set('approved_by',e.auth.id);r.set('approval_scope',t.getString('session_id')||t.id);app.save(r);});return e.json(200,r);
+  $app.runInTransaction(app=>{r=app.findRecordById('tool_calls',e.request.pathValue('id'));const t=p.taskForUser(app,e.auth,app.findRecordById('tasks',r.getString('task_id')));if(r.getString('status')!=='pending'||!['claimed','running'].includes(t.getString('status'))||t.getInt('attempt_no')!==r.getInt('attempt_no'))throw new BadRequestError('This request is no longer pending.');r.set('status',p.body(e).approve===true?'approved':'denied');r.set('approved_by',e.auth.id);r.set('approval_scope',t.getString('session_id')||t.id);app.save(r);});return e.json(200,r);
 },$apis.requireAuth());
 routerAdd('POST','/api/asoc/tools/{id}/start',(e)=>{
   const p=require(__hooks+'/platform.js');let r;

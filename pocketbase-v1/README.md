@@ -147,13 +147,25 @@ The real delegate uses the OpenAI-compatible streaming chat and function-tool co
 
 Provider URLs can be overridden with `GEMINI_BASE_URL`, `OPENAI_BASE_URL`, or `OLLAMA_BASE_URL`. Model responses stream into task lifecycle events and chat transcripts, and MCP function calls continue through the same playbook policy and approval path for every backend.
 
-Smoke-test a clean build, migration, auth, intake, chat, frontend, and runner policy path:
+Smoke-test a clean build, migrations, auth, intake routing, chat, authoring drafts, incident permissions, frontend, and runner execution:
 
 ```bash
 ./scripts/smoke-test.sh
 ```
 4. Type into `Send Input` while the task is running to append stdin events.
 5. Confirm the runner marks the task `succeeded` and the UI updates within a few seconds.
+
+### Assisted authoring and integration discovery
+
+Admins can create or edit resources and playbooks from the catalog. The structured editor retains Markdown instructions, advanced JSON, and explicit validation. The assistant queues a `TPL-AUTHORING` task, receives a bounded, redacted configuration snapshot, and has no tools. Accepting a proposal populates the editor; saving is a separate action. In mock mode, the proposal is labeled as a demonstration and does not claim to be model analysis.
+
+Analysts can regenerate incident overviews from incident sections, recent notes, task results, and relevant result/evidence artifacts. Proposals are stored separately. Replacing an overview requires explicit acceptance and fails if the source overview changed. Draft access is checked against the requester and current incident permissions, including immediately before the runner prepares context.
+
+Authoring uses `/api/asoc/authoring/context`, `/validate`, `/save`, and `/drafts`; the UI shows the recorded context used for generation. Resource edits use revision checks, and playbook saves increment their version. Task transcripts, artifacts, and approvals follow the associated task's incident access rules.
+
+**Settings → MCPs / Integrations** manages connections and credential environment-variable names. The runner periodically discovers tools on enabled MCP connections, records availability and tool names, and closes discovery connections afterward. Tool discovery grants no execution permission: both the agent profile and playbook policy must allow a tool. Real MCP/provider connectivity requires the appropriate runner environment and deployment acceptance checks.
+
+The smoke suite runs entirely against disposable containers and a disposable database. It checks successful and denied access, revoked incident membership, Unicode files, stale drafts, explicit application, and both resource and incident authoring through the mock runner.
 
 ### Frontend quick start
 

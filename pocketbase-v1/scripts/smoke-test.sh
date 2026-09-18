@@ -13,8 +13,11 @@ podman network create "$network" >/dev/null
 podman volume create "$volume" >/dev/null
 podman run -d --name "$name" --network "$network" -p 127.0.0.1::8090 -v "$volume:/pb/pb_data:Z" -e ASOC_RUNNER_PASSWORD=asoc-smoke-runner-password asoc-pocketbase-smoke >/dev/null
 port="$(podman port "$name" 8090/tcp | sed 's/.*://')"
-until curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null; do sleep 1; done
+attempts=0
+until curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; do attempts=$((attempts+1)); if [ "$attempts" -ge 60 ]; then echo 'PocketBase did not become healthy within 60 seconds.'; exit 1; fi; sleep 1; done
 POCKETBASE_URL="http://127.0.0.1:$port" ASOC_RUNNER_PASSWORD="asoc-smoke-runner-password" node tests/api-smoke.mjs
+podman exec "$name" pocketbase superuser upsert smoke@asoc.local asoc-smoke-superuser-password --dir=/pb/pb_data >/dev/null
+POCKETBASE_URL="http://127.0.0.1:$port" ASOC_RUNNER_PASSWORD="asoc-smoke-runner-password" node tests/authoring-smoke.mjs
 podman run -d --name "$runner_name" --network "$network" -e "POCKETBASE_URL=http://$name:8090" -e ASOC_RUNNER_PASSWORD=asoc-smoke-runner-password -e DELEGATE_LAUNCH_MODE=mock -e AI_PROVIDER=mock asoc-runner-smoke >/dev/null
 POCKETBASE_URL="http://127.0.0.1:$port" node tests/runner-smoke.mjs
 npm --prefix frontend run build

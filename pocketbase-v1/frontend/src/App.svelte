@@ -381,6 +381,7 @@
         title: resource.title ?? resource.id,
         subtitle: resource.category ?? 'Resource',
         kind: 'resource',
+        resourceRecord: resource,
         markdown: markdown || `# ${resource.title ?? resource.id}\n\nNo markdown file is attached yet.`,
         editable: !isPlaybook && user?.role==='admin',
         editTarget: {
@@ -568,6 +569,9 @@
   on:queueTask={(event) => queueTask(event.detail.incident)}
   on:sendTaskInput={(event) => sendTaskInput(event.detail.task, event.detail.message)}
   on:openResource={(event) => openResourceTab(event.detail.resource)}
+  on:editResource={(event)=>activateOrAddTab({id:`editor:${event.detail.resource.id}`,kind:'editor',title:`Edit ${event.detail.resource.title}`,markdown:'',resourceRecord:event.detail.resource})}
+  on:resourceSaved={async(event)=>{const r=event.detail.record;const playbook=r.collectionName==='templates';const resource={...r,title:playbook?r.name:r.title,category:playbook?'playbooks':r.category};const markdown=playbook?r.definition.instructions:await loadMarkdownFromFile(r,'body_md_file');tabs=tabs.map(tab=>tab.id===`resource:${r.id}`?{...tab,title:resource.title,markdown,resourceRecord:resource}:tab);}}
+  on:overviewApplied={async(event)=>{const record=event.detail.record;const markdown=await loadMarkdownFromFile(record,'content_md_file');tabs=tabs.map(tab=>tab.editTarget?.recordId===record.id?{...tab,markdown}:tab);await loadData();}}
   on:openCatalog={(event)=>activateOrAddTab({id:`catalog:${event.detail.section}:${event.detail.category||''}`,kind:'catalog',title:event.detail.title,subtitle:'Records and metadata',markdown:'',catalogSection:event.detail.section,catalogCategory:event.detail.category})}
   on:openOldIncident={(event) => openOldIncidentTab(event.detail.incident)}
   on:openAdHocChat={(event) => openAdHocChatTab(event.detail.chat)}

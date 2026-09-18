@@ -10,7 +10,7 @@ function find(app,name,field,value) { return app.findFirstRecordByData(name,fiel
 function optional(app,name,field,value) { try { return find(app,name,field,value); } catch (_) { return null; } }
 function json(record, field) {
   const value = record.get(field);
-  if (Array.isArray(value) && value.every((item) => typeof item === 'number')) return JSON.parse(String.fromCharCode.apply(null, value));
+  if (Array.isArray(value) && value.length && value.every((item) => typeof item === 'number')) return JSON.parse(String.fromCharCode.apply(null, value));
   if (typeof value === 'string') return value ? JSON.parse(value) : null;
   return JSON.parse(JSON.stringify(value || null));
 }
@@ -26,6 +26,11 @@ function incidentForUser(app, user, externalId) {
   const incident = find(app,'incidents','external_id',externalId);
   if (!canAccessIncident(app,user,incident)) throw new ForbiddenError('You do not have access to this incident.');
   return incident;
+}
+function taskForUser(app,user,task){
+  if(task.getString('incident_id'))incidentForUser(app,user,task.getString('incident_id'));
+  if(task.getString('template_id')==='TPL-AUTHORING'&&task.getString('created_by_user_id')!==user.id&&user.getString('role')!=='admin')throw new ForbiddenError();
+  return task;
 }
 function validateDefinition(d) {
   if (!d || Number(d.schema_version) !== 1 || !['triage','analysis','chat','custom'].includes(String(d.role)) || !d.name || !d.instructions) throw new BadRequestError('Playbook requires schema_version: 1, name, role and instructions.');
@@ -100,4 +105,4 @@ function validateIntakeConfig(app,config) {
   if(!Array.isArray(refs)||refs.length>50)throw new BadRequestError('Choose at most 50 resources.');
   for(const id of refs)if(typeof id!=='string'||!optional(app,'resources','external_id',id))throw new BadRequestError('Intake resource does not exist.');
 }
-module.exports={body,now,role,service,make,find,optional,json,canAccessIncident,incidentForUser,validateDefinition,validateIntakeConfig,queue,receive,ownedTask,triage};
+module.exports={body,now,role,service,make,find,optional,json,canAccessIncident,incidentForUser,taskForUser,validateDefinition,validateIntakeConfig,queue,receive,ownedTask,triage};

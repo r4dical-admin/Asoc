@@ -10,7 +10,7 @@
  async function load(){try{
    if(section==='health')runners=await listRunners();
    else if(section==='intakes')[intakes,configs]=await Promise.all([listIntakes(),listIntakeConfigs()]);
-   else if(section==='tasks')templates=await listTemplates();
+   else if(section==='tasks')templates=(await listTemplates()).filter(t=>t.external_id!=='TPL-AUTHORING');
    else if(currentUser()?.role==='admin')[users,configs,templates]=await Promise.all([listUsers(),listIntakeConfigs(),listTemplates()]);
    if(!intakeConfig)intakeConfig=configs.find(c=>c.kind==='manual')?.id||'';
    if(!taskTemplate)taskTemplate=templates.find(t=>t.role_type==='analysis')?.external_id||'';
